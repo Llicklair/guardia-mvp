@@ -33,8 +33,12 @@ una vive en [ARQUITECTURA.md](ARQUITECTURA.md); aquí está la forma citable.
    la IA no puede invocarlo ni desactivarlo.
 9. **No se reimplementan sensores.** Falco, osquery, Wazuh, Sigma, Suricata/Zeek,
    CrowdSec, OPA/Cedar (tabla en ARQUITECTURA.md §6). Lo propio es el plano de control.
-10. **Generador ≠ evaluador.** El veredicto lo dicta un modelo de familia distinta al
-    que generó la propuesta; si el atacante envenena a un modelo, no envenena al juez.
+10. **Generador ≠ evaluador, en rol.** El veredicto lo dictan los gates deterministas
+    (regla 6), nunca un modelo. Sobre eso, un evaluador adversarial —mismo modelo, rol
+    de refutar, sin ver la telemetría— aporta señal **advisory** que no bloquea nada.
+    *Relajada por [ADR 0007](docs/adr/0007-evaluador-misma-familia-lente-distinta.md);
+    la versión original exigía familia distinta y presuponía un LLM juez, que este
+    diseño ya no tiene. Si un modelo volviera a dictar veredictos, vuelve a aplicar.*
 11. **Anti-lockout es un requisito, no un nice-to-have.** Límite de tasa de cambios por
     ventana, dead-man's switch con reversión automática, y camino de recuperación fuera
     de banda. El auto-DoS es el modo de fallo más probable del sistema.

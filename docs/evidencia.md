@@ -310,3 +310,58 @@ heurístico, sino en que su salida no tenga autoridad y pase por gates que no co
   viene buena parte de la fuerza del resultado. En un despliegue donde el corpus benigno
   se grabara con el atacante ya dentro, esta garantía se debilita — es la decisión
   abierta de §9 sobre procedencia del corpus, todavía sin resolver.
+
+## 2026-07-31 · El evaluador adversarial (regla 10 revisada): ¿aporta señal o es decorativo?
+
+**Montaje.** ADR 0007 relajó la regla 10: el evaluador ya no exige familia distinta —
+es el mismo modelo con rol de refutar, cuatro lentes en negativo (lockout, cobertura,
+alcance, desvío) y salida **advisory** que nunca toca un veredicto. El ADR declaró de
+antemano cómo sabríamos si la decisión fue un error: *si nunca objeta, es decorativo;
+si sus objeciones repiten lo que ya dicen los gates, no aporta información*. Esta
+entrada mide justo eso, con `guardia responder --proveedor llm --evaluar`.
+
+**Resultado: objetó en 3 de 4 lentes, y ninguna objeción es algo que los gates
+comprueben.** Sobre la propuesta `block-c2-203-0-113-7` (correcta, que pasó los cuatro
+gates y llegó a canary):
+
+- **[alcance]** *"203.0.113.7 pertenece a TEST-NET-3 (RFC 5737), rango reservado para
+  documentación — no es una IP de C2 real."* **Es cierto, y nadie se lo había dicho.**
+  El corpus usa TEST-NET por convención de laboratorio (está razonado en el docstring de
+  `triaje._es_externa`), pero el evaluador lo dedujo del CIDR y señaló que una política
+  construida sobre ese rango no significa lo mismo en producción.
+- **[desvío]** *"bloquea basándose en 'reverse-shell observado' sin validar que los
+  eventos telemétricos no fueron inyectados por el atacante; permite inducir una falsa
+  línea de contención mientras la infraestructura real permanece activa."* Es
+  **exactamente el ataque que mide el banco de inyecciones**, deducido sin ver el corpus
+  de inyecciones ni saber que existe.
+- **[lockout]** Pide un mecanismo de excepciones por si esa IP fuera infraestructura
+  interna crítica.
+- **[cobertura]** Sin objeción.
+
+**Lectura honesta, porque "objetó mucho" no es lo mismo que "acertó".** Las tres
+objeciones son *ciertas* pero de valor desigual, y conviene separarlo:
+- La de **desvío** es señal de primer orden: nombra una debilidad estructural real.
+- La de **alcance** es cierta y útil como aviso sobre el laboratorio, pero **no es un
+  fallo de la política**: dentro del escenario, cortar esa IP es la respuesta correcta.
+  Un operador que la leyera literalmente rechazaría una propuesta buena.
+- La de **lockout** es **no verificable con lo que el evaluador tiene**: no puede saber
+  si la IP es interna crítica. Es una precaución razonable disfrazada de hallazgo.
+
+Dos de tres, entonces, son observaciones que un humano tendría que **descartar tras
+pensarlas**. Ese es el coste real de un evaluador advisory y la razón de que no pueda
+bloquear: con estas tres objeciones sobre una propuesta correcta, un evaluador con
+autoridad habría impedido una contención legítima. **La decisión del ADR 0007 de dejarlo
+sin autoridad no es prudencia decorativa: es lo que hace que estas objeciones sean
+utilizables en vez de peligrosas.**
+
+**Veredicto sobre la propia decisión:** no es decorativo (objeta), no repite a los gates
+(sus cuatro lentes miran cosas que ningún gate mira) y su mejor objeción coincide con una
+debilidad que ya teníamos medida — señal de que el rol funciona aunque la familia sea la
+misma. Queda pendiente la comprobación que el ADR pide de verdad: correr las cuatro
+lentes sobre el corpus de inyecciones y medir si distingue las propuestas desviadas de
+las correctas. Eso es medir al evaluador, no ilustrarlo, y todavía no está hecho.
+
+**Acción que sale de aquí:** la objeción de TEST-NET-3 apunta a una limitación real del
+laboratorio, no del código. Anotada para cuando el banco se mueva a la VM Linux: el
+escenario debería usar un rango que no sea de documentación, o dejar dicho explícitamente
+por qué no importa.

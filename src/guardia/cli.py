@@ -18,19 +18,14 @@ from .actores import Actor, SinAutoridad
 from .aplicador import Aplicador
 from .banco import Banco
 from .despliegue import Despliegue, Estado
+from .evaluador import EvaluadorAdversarial
 from .eventos import cargar
 from .forja import Forja, Resultado
 from .invariantes import Config, comprobar
 from .kill_switch import Interruptor
 from .politica import PropuestaInvalida, desde_json
-from .triaje import (
-    COMANDOS_CLI,
-    ProveedorHeuristico,
-    ProveedorLLM,
-    TransporteCLI,
-    TransporteFallido,
-    Triaje,
-)
+from .transporte import COMANDOS_CLI, TransporteCLI, TransporteFallido
+from .triaje import ProveedorHeuristico, ProveedorLLM, Triaje
 
 RAIZ = Path(__file__).resolve().parent.parent.parent
 BENIGNO_POR_DEFECTO = RAIZ / "corpus" / "eventos" / "benigno.jsonl"
@@ -240,6 +235,22 @@ def _proveedor(args: argparse.Namespace) -> ProveedorHeuristico | ProveedorLLM:
     return ProveedorLLM(TransporteCLI(comando))
 
 
+def _mostrar_dictamen(args: argparse.Namespace, propuesta, interruptor) -> None:
+    """El evaluador adversarial (regla 10, ADR 0007). ADVISORY: se imprime y se audita,
+    pero no toca el veredicto ni el codigo de salida. Si el canal cae, se dice y se
+    sigue — un evaluador caido no puede parar una contencion."""
+    comando = COMANDOS_CLI[args.llm_cli]
+    dictamen = EvaluadorAdversarial(TransporteCLI(comando), interruptor.auditoria).evaluar(
+        propuesta
+    )
+    if dictamen.limpio:
+        print("evaluador adversarial: sin objeciones (advisory)")
+        return
+    print("evaluador adversarial (ADVISORY, no bloquea):")
+    for objecion in dictamen.con_objecion:
+        print(f"  ! [{objecion.lente}] {objecion.motivo}")
+
+
 def _cmd_responder(args: argparse.Namespace) -> int:
     """El ciclo completo: incidente → triaje (T2) → despliegue (T3). Por defecto con
     el proveedor heuristico determinista; `--proveedor llm` conecta el modelo real por
@@ -261,6 +272,8 @@ def _cmd_responder(args: argparse.Namespace) -> int:
         print(f"T2: sin propuesta para '{incidente.nombre}' (nada evidente que contener)")
         return 1
     print(f"T2 propone: '{propuesta.id}' ({propuesta.tipo.value})")
+    if args.evaluar:
+        _mostrar_dictamen(args, propuesta, interruptor)
 
     despacho = _despliegue(args).desplegar(propuesta)
     destino = sys.stdout if despacho.aplicado else sys.stderr
@@ -382,6 +395,11 @@ def _flags_de_proveedor(sub: argparse.ArgumentParser) -> None:
         "--comando-llm",
         default=None,
         help="comando de transporte a medida (avanzado; el prompt entra por stdin)",
+    )
+    sub.add_argument(
+        "--evaluar",
+        action="store_true",
+        help="pasa la propuesta por el evaluador adversarial (advisory, no bloquea)",
     )
 
 

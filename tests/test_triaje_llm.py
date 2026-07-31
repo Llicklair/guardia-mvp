@@ -17,13 +17,11 @@ from guardia.auditoria import Auditoria
 from guardia.cli import INCIDENTE_POR_DEFECTO, main
 from guardia.eventos import Corpus, EventoRed, cargar
 from guardia.kill_switch import Interruptor
+from guardia.transporte import COMANDOS_CLI, TransporteCLI, TransporteFallido
 from guardia.triaje import (
-    COMANDOS_CLI,
     ContextoIncidente,
     ProveedorHeuristico,
     ProveedorLLM,
-    TransporteCLI,
-    TransporteFallido,
     Triaje,
 )
 

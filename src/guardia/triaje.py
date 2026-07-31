@@ -24,8 +24,6 @@ limitacion, es la tesis (la IA es el plus).
 from __future__ import annotations
 
 import json
-import shutil
-import subprocess
 from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv4Network
 from typing import Protocol
@@ -33,6 +31,7 @@ from typing import Protocol
 from .auditoria import Auditoria
 from .eventos import Corpus, EventoRed
 from .politica import Propuesta, PropuestaInvalida, desde_json
+from .transporte import Transporte, extraer_json
 
 _MAX_CONTEXTO = 8_000
 
@@ -105,73 +104,6 @@ class ProveedorHeuristico:
         )
 
 
-class TransporteFallido(Exception):
-    """El canal hacia el modelo no respondio: binario ausente, timeout o salida != 0.
-
-    Es distinto de una respuesta mala. Si el modelo contesta basura, la gramatica la
-    descarta y queda auditado; si el canal esta caido, quien llama puede caer al
-    proveedor heuristico — el camino de recuperacion existe justo para esto."""
-
-
-class Transporte(Protocol):
-    """Canal hacia un modelo: recibe el prompt completo y devuelve el texto crudo."""
-
-    def invocar(self, prompt: str) -> str: ...
-
-
-# Presets de solo-inferencia (ADR 0006). Dos condiciones no negociables: el prompt
-# entra por STDIN (contiene telemetria hostil; por argv acabaria en logs de procesos
-# y en limites de linea de comandos) y el CLI corre SIN herramientas (--tools "" en
-# claude, plan en gemini): un modelo con herramientas seria ejecucion de codigo a un
-# prompt inyectado de distancia. Sin --bare en claude a proposito: ese modo solo
-# autentica por ANTHROPIC_API_KEY y rompe la sesion OAuth de la suscripcion.
-#
-# La garantia de gemini es MAS DEBIL que la de claude: plan es "solo lectura", no
-# "sin herramientas" (--skip-trust hace falta porque sin trust el modo plan se
-# degrada a default y el proceso headless muere). Suficiente para el banco de
-# pruebas; para un host con secretos, cerrar antes con su policy engine.
-COMANDOS_CLI: dict[str, tuple[str, ...]] = {
-    "claude": ("claude", "-p", "--tools", "", "--model", "haiku"),
-    "gemini": ("gemini", "--skip-trust", "--approval-mode", "plan", "-p", ""),
-}
-
-
-@dataclass(frozen=True)
-class TransporteCLI:
-    """Habla con el modelo a traves de su CLI oficial, por stdin.
-
-    Por que CLI y no API directa: el transporte queda intercambiable (claude, gemini,
-    un modelo local manana) y la autenticacion vive en la CLI, no en este codigo.
-    Esto es el banco de pruebas de la metrica 5, no la configuracion de produccion:
-    para produccion la respuesta de §9 sigue apuntando a un modelo local."""
-
-    comando: tuple[str, ...]
-    timeout_s: float = 240.0
-
-    def invocar(self, prompt: str) -> str:
-        ejecutable = shutil.which(self.comando[0])
-        if ejecutable is None:
-            raise TransporteFallido(f"'{self.comando[0]}' no esta en el PATH")
-        try:
-            resultado = subprocess.run(
-                (ejecutable, *self.comando[1:]),
-                input=prompt,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=self.timeout_s,
-            )
-        except subprocess.TimeoutExpired as e:
-            raise TransporteFallido(f"'{self.comando[0]}' agoto {self.timeout_s}s") from e
-        if resultado.returncode != 0:
-            detalle = (resultado.stderr or resultado.stdout or "").strip()[:200]
-            raise TransporteFallido(
-                f"'{self.comando[0]}' salio con {resultado.returncode}: {detalle}"
-            )
-        return resultado.stdout
-
-
 _INSTRUCCIONES = """\
 Eres el triaje (T2) de un sistema de contencion de incidentes. Recibes la telemetria
 de UN incidente y respondes con UNA propuesta de contencion en JSON, y nada mas: sin
@@ -213,7 +145,7 @@ class ProveedorLLM:
 
     def sugerir(self, contexto: ContextoIncidente) -> str:
         prompt = _INSTRUCCIONES + "\n" + contexto.como_texto_no_confiable() + "\n"
-        return _extraer_json(self.transporte.invocar(prompt))
+        return extraer_json(self.transporte.invocar(prompt))
 
 
 @dataclass(frozen=True)
@@ -266,26 +198,6 @@ def _es_externa(ip: IPv4Address) -> bool:
     cortaria. Aqui interno = RFC1918 + loopback + link-local, y nada mas.
     """
     return not any(ip in rango for rango in _RANGOS_INTERNOS)
-
-
-def _extraer_json(texto: str) -> str:
-    """Recorta el primer objeto JSON completo de la respuesta del modelo.
-
-    Los modelos envuelven el JSON en prosa o vallas de markdown aunque se les pida
-    que no. Recortar NO es interpretar: el objeto extraido pasa entero por la
-    gramatica, que sigue descartando cualquier desviacion. Si no hay ningun objeto,
-    se devuelve el texto tal cual para que la gramatica lo rechace y el descarte
-    quede auditado."""
-    decodificador = json.JSONDecoder()
-    for i, caracter in enumerate(texto):
-        if caracter == "{":
-            try:
-                objeto, _ = decodificador.raw_decode(texto[i:])
-            except json.JSONDecodeError:
-                continue
-            if isinstance(objeto, dict):
-                return json.dumps(objeto)
-    return texto
 
 
 def _es_sin_propuesta(crudo: str) -> bool:

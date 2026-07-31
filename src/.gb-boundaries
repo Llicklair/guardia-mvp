@@ -88,6 +88,33 @@ guardia.motor -/-> guardia.despliegue
 guardia.aplicador -/-> guardia.despliegue
 guardia.kill_switch -/-> guardia.despliegue
 
+# El transporte es un canal tonto: no conoce ni el dominio ni a quien le habla. Que
+# no importe politica ni triaje es lo que permite que T2 y el evaluador lo compartan
+# sin conocerse entre ellos.
+guardia.transporte -/-> guardia.politica
+guardia.transporte -/-> guardia.triaje
+guardia.transporte -/-> guardia.evaluador
+guardia.transporte -/-> guardia.eventos
+guardia.transporte -/-> guardia.auditoria
+guardia.transporte -/-> guardia.cli
+
+# El evaluador adversarial (regla 10, ADR 0007) es ADVISORY: mira una propuesta y
+# emite objeciones. Que no pueda importar forja/despliegue/aplicador es lo que hace
+# imposible por construccion que su dictamen se convierta en un veredicto.
+guardia.evaluador -/-> guardia.forja
+guardia.evaluador -/-> guardia.despliegue
+guardia.evaluador -/-> guardia.aplicador
+guardia.evaluador -/-> guardia.motor
+guardia.evaluador -/-> guardia.invariantes
+guardia.evaluador -/-> guardia.kill_switch
+guardia.evaluador -/-> guardia.cli
+
+# Y generador != evaluador tambien en el grafo: no se conocen. Comparten transporte,
+# no rol; si un dia el triaje pudiera invocar a su propio juez, la separacion seria
+# nominal.
+guardia.triaje -/-> guardia.evaluador
+guardia.evaluador -/-> guardia.triaje
+
 # El banco (metrica 5) es instrumentacion: observa el ciclo desde fuera y NADA del
 # sistema lo importa. Si un modulo del producto necesitara el banco para funcionar,
 # la medicion habria pasado a formar parte de lo medido.
