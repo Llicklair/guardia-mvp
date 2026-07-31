@@ -53,5 +53,20 @@ guardia.aplicador -/-> guardia.motor
 guardia.aplicador -/-> guardia.forja
 guardia.aplicador -/-> guardia.cli
 
-# La forja es el techo del dominio (junto con la CLI): nada la importa hacia abajo.
+# La forja no depende del despliegue que la envuelve por encima.
 guardia.forja -/-> guardia.cli
+guardia.forja -/-> guardia.despliegue
+
+# El despliegue es el techo del dominio (junto con la CLI): produce el ciclo completo
+# incidente -> propuesta -> gates -> aplicacion, y nada por debajo lo importa.
+guardia.despliegue -/-> guardia.cli
+
+# Los cimientos siguen sin conocer el despliegue.
+guardia.actores -/-> guardia.despliegue
+guardia.auditoria -/-> guardia.despliegue
+guardia.politica -/-> guardia.despliegue
+guardia.invariantes -/-> guardia.despliegue
+guardia.eventos -/-> guardia.despliegue
+guardia.motor -/-> guardia.despliegue
+guardia.aplicador -/-> guardia.despliegue
+guardia.kill_switch -/-> guardia.despliegue

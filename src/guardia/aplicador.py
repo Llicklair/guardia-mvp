@@ -75,9 +75,13 @@ class Aplicador:
         self._escribir(actuales)
         return punto
 
-    def revertir(self, punto: Punto, propuesta: Propuesta) -> None:
-        """Deshace `aplicar`: quita la propuesta por id. El punto sirve para verificar."""
-        actuales = [p for p in self.activas() if p["id"] != propuesta.id]
+    def revertir(self, punto: Punto, propuesta_id: str) -> None:
+        """Deshace `aplicar`: quita la propuesta por id. El punto sirve para verificar.
+
+        Toma el id, no el objeto: al revertir un canary por dead-man ya no tenemos la
+        propuesta original, solo su id guardado en disco — y es lo unico que hace falta.
+        """
+        actuales = [p for p in self.activas() if p["id"] != propuesta_id]
         self._escribir(actuales)
 
     def restaura_a(self, punto: Punto) -> bool:

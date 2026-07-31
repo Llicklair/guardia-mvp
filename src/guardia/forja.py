@@ -132,7 +132,7 @@ class Forja:
                     ("aplicar no cambio el estado: no hay nada que revertir con sentido",),
                 )
         finally:
-            self.aplicador.revertir(punto, propuesta)
+            self.aplicador.revertir(punto, propuesta.id)
         if not self.aplicador.restaura_a(punto):
             return Veredicto(
                 Resultado.REJECT,

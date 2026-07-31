@@ -24,9 +24,12 @@ python -m guardia.cli forjar <prop.json>   # corre una propuesta por los 4 gates
 ```
 
 La CLI `guardia`: `estado` / `congelar` / `descongelar` (interruptor de emergencia),
-`auditoria [--verificar]` (log encadenado), `validar` (gramática + invariantes) y
-`forjar` (los cuatro gates → PASS/REJECT/BLOCKER, exit 0/6/5). `forjar` trabaja sobre un
-sandbox y no aplica a producción: sin PASS, nada se aplica.
+`auditoria [--verificar]` (log encadenado), `validar` (gramática + invariantes),
+`forjar` (los cuatro gates → PASS/REJECT/BLOCKER, exit 0/6/5) sobre sandbox, y el ciclo
+de aplicación real: `desplegar` (forja + canary con dead-man's switch + límite de tasa,
+exit 0/6/7), `confirmar <id>` (marca un canary estable, solo humano) y `revisar` (el
+dead-man's switch: revierte los canarios expirados; lo llama el automata). Sin PASS,
+nada se aplica; nada se aplica global de golpe.
 
 El fichero de fronteras vive en [src/.gb-boundaries](src/.gb-boundaries), **no** en la
 raíz: `gb graph src` lo busca dentro del path que analiza, y en la raíz cargaría cero

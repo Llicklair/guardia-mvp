@@ -14,6 +14,7 @@ from pathlib import Path
 
 from .actores import Actor, SinAutoridad
 from .aplicador import Aplicador
+from .despliegue import Despliegue, Estado
 from .eventos import cargar
 from .forja import Forja, Resultado
 from .invariantes import Config, comprobar
@@ -128,6 +129,61 @@ def _cmd_forjar(args: argparse.Namespace) -> int:
     return {Resultado.PASS: 0, Resultado.REJECT: 6, Resultado.BLOCKER: 5}[veredicto.resultado]
 
 
+def _despliegue(args: argparse.Namespace) -> Despliegue:
+    # confirmar/revisar no forjan, asi que no declaran --benigno/--incidente: getattr
+    # con el default cubre esos casos sin obligar a cada subcomando a repetir los flags.
+    interruptor = _interruptor(args)
+    forja = Forja(
+        interruptor=interruptor,
+        aplicador=Aplicador(interruptor.directorio / "sandbox-politica.json"),
+        benigno=cargar(getattr(args, "benigno", str(BENIGNO_POR_DEFECTO))),
+        incidente=cargar(getattr(args, "incidente", str(INCIDENTE_POR_DEFECTO))),
+    )
+    return Despliegue(forja, interruptor.directorio / "despliegue")
+
+
+def _cmd_desplegar(args: argparse.Namespace) -> int:
+    """Forja + aplicacion real: si pasa los gates y no excede la tasa, se aplica en
+    canary con dead-man's switch. Cierra el ciclo T3."""
+    texto = Path(args.fichero).read_text(encoding="utf-8") if args.fichero else sys.stdin.read()
+    try:
+        propuesta = desde_json(texto)
+    except PropuestaInvalida as e:
+        print(f"DESCARTADA (no encaja en la gramatica): {e}", file=sys.stderr)
+        return 2
+    despacho = _despliegue(args).desplegar(propuesta)
+    destino = sys.stdout if despacho.aplicado else sys.stderr
+    print(f"propuesta '{despacho.propuesta_id}': {despacho.estado.value}", file=destino)
+    print(f"  {despacho.motivo}", file=destino)
+    return {Estado.APLICADO_CANARY: 0, Estado.RECHAZADO_GATE: 6, Estado.RECHAZADO_TASA: 7}[
+        despacho.estado
+    ]
+
+
+def _cmd_confirmar(args: argparse.Namespace) -> int:
+    try:
+        canario = _despliegue(args).confirmar(args.propuesta, Actor(args.actor))
+    except SinAutoridad as e:
+        print(f"denegado: {e}", file=sys.stderr)
+        return 3
+    except KeyError as e:
+        print(f"no encontrado: {e}", file=sys.stderr)
+        return 4
+    print(f"canary '{canario.propuesta_id}' confirmado: estable, dead-man desarmado")
+    return 0
+
+
+def _cmd_revisar(args: argparse.Namespace) -> int:
+    """El dead-man's switch: revierte los canarios expirados sin confirmar. Lo llama el
+    automata; determinista, sin IA."""
+    revertidos = _despliegue(args).revisar()
+    if revertidos:
+        print(f"revertidos por dead-man: {', '.join(revertidos)}")
+    else:
+        print("sin canarios expirados")
+    return 0
+
+
 def construir_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="guardia",
@@ -178,6 +234,22 @@ def construir_parser() -> argparse.ArgumentParser:
         "--incidente", default=str(INCIDENTE_POR_DEFECTO), help="repro del incidente (JSONL)"
     )
     forjar.set_defaults(func=_cmd_forjar)
+
+    desplegar = sub.add_parser("desplegar", help="forja + aplica en canary con dead-man's switch")
+    desplegar.add_argument("fichero", nargs="?", help="JSON de la propuesta (por defecto, stdin)")
+    desplegar.add_argument("--benigno", default=str(BENIGNO_POR_DEFECTO), help="corpus benigno")
+    desplegar.add_argument(
+        "--incidente", default=str(INCIDENTE_POR_DEFECTO), help="repro incidente"
+    )
+    desplegar.set_defaults(func=_cmd_desplegar)
+
+    confirmar = sub.add_parser("confirmar", help="confirma un canary como estable (solo humano)")
+    confirmar.add_argument("propuesta", help="id de la propuesta en canary")
+    confirmar.add_argument("--actor", choices=[a.value for a in Actor], default=Actor.HUMANO.value)
+    confirmar.set_defaults(func=_cmd_confirmar)
+
+    revisar = sub.add_parser("revisar", help="dead-man's switch: revierte canarios expirados")
+    revisar.set_defaults(func=_cmd_revisar)
 
     return parser
 

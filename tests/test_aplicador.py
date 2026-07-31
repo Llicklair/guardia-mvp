@@ -46,7 +46,7 @@ def test_el_rollback_restaura_el_hash_exacto(aplicador):
     punto = aplicador.aplicar(_prop("nueva"))
     assert len(aplicador.activas()) == 2
 
-    aplicador.revertir(punto, _prop("nueva"))
+    aplicador.revertir(punto, "nueva")
 
     assert aplicador.restaura_a(punto)
     assert len(aplicador.activas()) == 1

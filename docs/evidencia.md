@@ -141,3 +141,31 @@ banco es el motor de Falco (regla 9, no se reimplementa), así que la forja la m
 Consecuencia práctica: hoy el ciclo completo se demuestra con el filtro de egress (cortar
 el C2), no con la regla de detección de Falco. Las dos son respuestas válidas al mismo
 incidente; la detección espera a que el banco de Falco sea fiable (ver negativo anterior).
+
+## 2026-07-31 · Aplicación real: canary, dead-man's switch y límite de tasa — PASA
+
+**Montaje.** La capa de despliegue (`guardia desplegar/confirmar/revisar`) cierra T3:
+un veredicto PASS de la forja se aplica a producción, pero nunca de golpe. Tres frenos
+deterministas de §5.5 (el modo de fallo *más probable* del sistema, según ARQUITECTURA:
+el defensor tumbándose a sí mismo). El reloj se inyecta para probar los plazos sin dormir.
+
+**Resultado (118 tests, e2e por CLI).**
+- **Canary + confirmación humana.** Una propuesta correcta se aplica *en observación*.
+  Solo un humano la confirma como estable: `confirmar --actor ia` → denegado, `--actor
+  automata` → denegado, humano → OK. Misma autoridad que descongelar (regla 3).
+- **Dead-man's switch.** Un canary no confirmado se revierte **solo** al pasar su plazo:
+  avanzando el reloj inyectado 101s sobre un plazo de 100s, `revisar()` devuelve el id
+  revertido y la política activa vuelve a vacío. Un confirmado sobrevive aunque el reloj
+  avance 500s. Esto es lo que deshace un lockout aunque el admin ya no pueda entrar a
+  deshacerlo — que es justo cuando no puede.
+- **Límite de tasa (anti auto-DoS).** Con `max_cambios_ventana=3`, el cuarto cambio en
+  la ventana se rechaza (`RECHAZADO_TASA`) aunque pase los gates; pasada la ventana, el
+  cupo se recupera. Y un rechazo por gate **no** consume cupo: 5 lockouts BLOCKER
+  seguidos no agotan el límite, así el atacante no lo vacía con propuestas inválidas.
+- La cadena de auditoría sigue intacta tras desplegar, confirmar y revertir; cada acción
+  (incluida la reversión por dead-man) queda registrada.
+
+**Límite honesto del canary.** Sin una flota que dividir, el canary del MVP es *temporal*
+(observar N segundos) y no *espacial* (un subconjunto de hosts). Es la mecánica
+aplicar→observar→confirmar/revertir, que es lo verificable ahora; el reparto por hosts
+llega con la flota. Escrito en el docstring del módulo y aquí, no escondido.
