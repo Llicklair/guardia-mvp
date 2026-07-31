@@ -1,0 +1,42 @@
+# El laboratorio del MVP. Tres servicios en una red aislada, sin puertos al host:
+# el escenario de ataque vive entero dentro de la red 'laboratorio'.
+
+services:
+  objetivo:
+    build: ./objetivo
+    container_name: lab-objetivo
+    networks: [laboratorio]
+    # Sin `ports:` a proposito: la victima vulnerable no se expone al host.
+
+  atacante:
+    build: ./atacante
+    container_name: lab-atacante
+    networks: [laboratorio]
+    depends_on: [objetivo]
+    environment:
+      OBJETIVO: objetivo:8080
+      YO: atacante
+
+  falco:
+    image: falcosecurity/falco:0.41.3
+    container_name: lab-falco
+    privileged: true          # Falco necesita ver el kernel del host
+    depends_on: [objetivo]
+    volumes:
+      - /var/run/docker.sock:/host/var/run/docker.sock
+      - /proc:/host/proc:ro
+      # El probe modern_ebpf necesita /dev, /sys (BTF vive en /sys/kernel/btf) y
+      # /etc del host; sin ellos scap_init falla aunque el kernel traiga BTF.
+      - /dev:/host/dev
+      - /sys:/host/sys:ro
+      - /sys/kernel/debug:/sys/kernel/debug:rw
+      - /etc:/host/etc:ro
+      - ./falco/reglas_locales.yaml:/etc/falco/rules.d/reglas_locales.yaml:ro
+    ulimits:
+      memlock: -1             # el probe eBPF bloquea memoria para el ring buffer
+    # -M 60: en el laboratorio corre 60s y sale, para no dejarlo colgado.
+    command: ["/usr/bin/falco", "-M", "60"]
+
+networks:
+  laboratorio:
+    driver: bridge

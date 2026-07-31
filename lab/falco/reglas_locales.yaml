@@ -1,0 +1,36 @@
+# Reglas locales del laboratorio. Van ADEMAS del ruleset base de Falco.
+#
+# Esta es la regla que, en el sistema real, escribiria y verificaria la forja (T3)
+# a partir del incidente. Aqui la escribimos a mano para tener el objetivo contra el
+# que medir: cuando el pipeline de IA genere su version, se comparara contra esta y
+# contra el ruleset base — no se parte de cero.
+#
+# Detecta el corazon del escenario: un shell lanzado como hijo del proceso del
+# servidor web. Es determinista y no depende de ninguna IA (regla 1).
+
+# OJO al aname vs pname: el padre DIRECTO del bash de la reverse shell es otro bash
+# (python -> sh -> bash -c -> bash -i). Mirar proc.pname deja pasar el incidente;
+# hay que mirar la cadena de ANCESTROS. Esto lo descubrio el laboratorio, no el papel
+# — ver docs/evidencia.md, y es justo lo que el gate de replay malicioso atrapa.
+- macro: bajo_servidor_web
+  condition: >
+    proc.aname[1] in (python, python3, nginx, apache2, httpd) or
+    proc.aname[2] in (python, python3, nginx, apache2, httpd) or
+    proc.aname[3] in (python, python3, nginx, apache2, httpd) or
+    proc.aname[4] in (python, python3, nginx, apache2, httpd)
+
+- macro: es_shell
+  condition: proc.name in (bash, sh, dash, zsh, ash)
+
+- rule: Shell lanzada desde el servidor web
+  desc: >
+    Un interprete de comandos aparece en el arbol de un proceso de servidor web. En
+    el MVP esto es la firma de la shell inversa: el servidor no deberia lanzar shells.
+  condition: >
+    spawned_process and es_shell and bajo_servidor_web
+  output: >
+    Shell lanzada desde el servidor web
+    (usuario=%user.name shell=%proc.name padre=%proc.pname
+     cmd=%proc.cmdline pid=%proc.pid ppid=%proc.ppid contenedor=%container.name)
+  priority: CRITICAL
+  tags: [mvp, shell_inversa, incidente_0001]
