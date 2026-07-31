@@ -13,6 +13,7 @@ import pytest
 from guardia.actores import Actor
 from guardia.aplicador import Aplicador
 from guardia.auditoria import Auditoria
+from guardia.cli import construir_parser
 from guardia.despliegue import Despliegue, Estado
 from guardia.eventos import Corpus, EventoProceso, EventoRed
 from guardia.forja import Forja
@@ -20,7 +21,6 @@ from guardia.kill_switch import Interruptor
 from guardia.triaje import (
     ContextoIncidente,
     ProveedorHeuristico,
-    ProveedorLLM,
     Triaje,
 )
 
@@ -141,10 +141,11 @@ def test_ciclo_completo_incidente_a_canary(incidente, benigno, tmp_path):
     assert len(despliegue.politica_activa()) == 1
 
 
-def test_el_proveedor_llm_no_esta_conectado(incidente):
-    """Invocar el LLM real gasta cuota: hasta el OK explicito, lanza en vez de llamar."""
-    with pytest.raises(NotImplementedError, match="OK explicito"):
-        ProveedorLLM().sugerir(ContextoIncidente(incidente))
+def test_el_proveedor_llm_es_opt_in_en_la_cli():
+    """El LLM real ya esta conectado (ADR 0006), pero invocarlo sigue siendo una
+    decision: `responder` usa el heuristico salvo `--proveedor llm` explicito."""
+    args = construir_parser().parse_args(["responder"])
+    assert args.proveedor == "heuristico"
 
 
 def test_el_contexto_marca_los_datos_como_no_confiables(incidente):

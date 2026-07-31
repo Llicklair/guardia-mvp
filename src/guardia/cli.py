@@ -1,14 +1,16 @@
 """`guardia` — la linea de mando determinista.
 
-Todo lo que se puede hacer desde aqui es deterministico y no pasa por ningun modelo.
-Es a proposito: el camino de recuperacion de un incidente no puede depender de que
-una API de inferencia conteste.
+Por defecto nada de lo que se hace desde aqui pasa por un modelo. Es a proposito: el
+camino de recuperacion de un incidente no puede depender de que una inferencia
+conteste. El unico modelo alcanzable es el triaje con `responder --proveedor llm`,
+que es opt-in, y si su transporte cae el ciclo se recupera con el heuristico.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import sys
 from pathlib import Path
 
@@ -20,7 +22,14 @@ from .forja import Forja, Resultado
 from .invariantes import Config, comprobar
 from .kill_switch import Interruptor
 from .politica import PropuestaInvalida, desde_json
-from .triaje import ProveedorHeuristico, Triaje
+from .triaje import (
+    COMANDOS_CLI,
+    ProveedorHeuristico,
+    ProveedorLLM,
+    TransporteCLI,
+    TransporteFallido,
+    Triaje,
+)
 
 RAIZ = Path(__file__).resolve().parent.parent.parent
 BENIGNO_POR_DEFECTO = RAIZ / "corpus" / "eventos" / "benigno.jsonl"
@@ -185,14 +194,34 @@ def _cmd_revisar(args: argparse.Namespace) -> int:
     return 0
 
 
+def _proveedor(args: argparse.Namespace) -> ProveedorHeuristico | ProveedorLLM:
+    if args.proveedor == "heuristico":
+        return ProveedorHeuristico()
+    if args.comando_llm:
+        # posix=False conserva las barras de Windows; las comillas se quitan a mano.
+        comando = tuple(t.strip('"') for t in shlex.split(args.comando_llm, posix=False))
+    else:
+        comando = COMANDOS_CLI[args.llm_cli]
+    return ProveedorLLM(TransporteCLI(comando))
+
+
 def _cmd_responder(args: argparse.Namespace) -> int:
-    """El ciclo completo: incidente → triaje (T2) → despliegue (T3). Con el proveedor
-    heuristico determinista; el LLM real va detras de la misma interfaz y no se invoca
-    sin OK (gasta cuota). Demuestra la tesis end-to-end sin salir de lo determinista."""
+    """El ciclo completo: incidente → triaje (T2) → despliegue (T3). Por defecto con
+    el proveedor heuristico determinista; `--proveedor llm` conecta el modelo real por
+    su CLI (ADR 0006). Si el transporte cae, el ciclo se recupera con el heuristico y
+    queda auditado: la respuesta a un incidente no espera a que una inferencia
+    conteste."""
     interruptor = _interruptor(args)
     incidente = cargar(args.incidente)
-    triaje = Triaje(ProveedorHeuristico(), interruptor.auditoria)
-    propuesta = triaje.proponer(incidente)
+    triaje = Triaje(_proveedor(args), interruptor.auditoria)
+    try:
+        propuesta = triaje.proponer(incidente)
+    except TransporteFallido as e:
+        print(f"T2: transporte LLM caido ({e}); recuperando con heuristico", file=sys.stderr)
+        interruptor.auditoria.registrar(
+            "triaje_transporte_caido", Actor.AUTOMATA.value, motivo=str(e)[:200]
+        )
+        propuesta = Triaje(ProveedorHeuristico(), interruptor.auditoria).proponer(incidente)
     if propuesta is None:
         print(f"T2: sin propuesta para '{incidente.nombre}' (nada evidente que contener)")
         return 1
@@ -280,6 +309,23 @@ def construir_parser() -> argparse.ArgumentParser:
         "--incidente", default=str(INCIDENTE_POR_DEFECTO), help="repro del incidente (JSONL)"
     )
     responder.add_argument("--benigno", default=str(BENIGNO_POR_DEFECTO), help="corpus benigno")
+    responder.add_argument(
+        "--proveedor",
+        choices=["heuristico", "llm"],
+        default="heuristico",
+        help="quien propone en T2 (llm invoca un modelo real y gasta cuota; opt-in)",
+    )
+    responder.add_argument(
+        "--llm-cli",
+        choices=sorted(COMANDOS_CLI),
+        default="claude",
+        help="CLI de modelo para --proveedor llm (presets de solo-inferencia)",
+    )
+    responder.add_argument(
+        "--comando-llm",
+        default=None,
+        help="comando de transporte a medida (avanzado; el prompt entra por stdin)",
+    )
     responder.set_defaults(func=_cmd_responder)
 
     return parser

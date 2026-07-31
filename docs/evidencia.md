@@ -204,3 +204,44 @@ una propuesta que muere en el gate, no un cambio aplicado.
 un LLM real bajo inyecciones reales — eso llega cuando se conecte el proveedor LLM, con
 OK explícito, y el corpus adversarial de `corpus/propuestas/` como banco. Lo que sí queda
 demostrado: aunque T2 esté 100% comprometido, la arquitectura no aplica su veneno.
+
+## 2026-07-31 · El LLM real, conectado por CLI: ¿el ciclo aguanta con un modelo de verdad? — SÍ
+
+**Montaje (ADR 0006, con OK explícito).** `ProveedorLLM` compuesto con un `Transporte`
+intercambiable. El primero, `TransporteCLI`: subproceso a la CLI oficial del modelo, con
+el prompt entero por **stdin** (la telemetría la escribe el atacante; por argv acabaría
+en logs de procesos) y la CLI **sin herramientas** (`claude -p --tools ""`;
+`gemini --skip-trust --approval-mode plan`). Opt-in siempre: `responder` usa el
+heurístico salvo `--proveedor llm`. 138 tests deterministas (modelo simulado) + un smoke
+real detrás de `GUARDIA_SMOKE_LLM` para que la suite jamás gaste cuota por accidente.
+
+**Resultado — el ciclo real, medido dos veces.**
+1. **Smoke T2 con Claude (haiku)**: contra el repro del incidente propone un
+   `filtro_red` que pasa la gramática. 15s. Con **Gemini**: también propone válido, 99s.
+   Dos familias distintas de modelo detrás de la misma interfaz — la base del evaluador
+   adversarial de la regla 10 ya existe.
+2. **Ciclo completo `responder --proveedor llm`**: Claude propone
+   `bloqueo-c2-203-0-113-7` (id suyo, IP del C2 correcta) → forja PASS en los cuatro
+   gates → canary aplicado. La auditoría deja la misma cadena que con el heurístico:
+   `humano` descongela, `ia` propone, `automata` veredicto, `automata` canary. **Primera
+   vez que el actor `ia` del log es una inferencia real y no un doble.**
+
+**El camino de recuperación, también medido.** Con el transporte roto a propósito
+(binario inexistente), `responder` no se queda sin responder: audita
+`triaje_transporte_caido` y cae al heurístico, que propone y llega a canary igual
+(exit 0). LLM caído ≠ incidente sin contener (regla 1).
+
+**Negativos honestos del transporte.**
+- `--bare` en claude rompe la sesión OAuth de la suscripción (solo admite API key): se
+  quitó del preset tras verlo fallar, no se supuso.
+- La garantía de gemini es **más débil**: `plan` es "solo lectura", no "sin
+  herramientas", y exige `--skip-trust`. Para el banco de pruebas vale; en un host con
+  secretos, no, hasta cerrarlo con su policy engine. Un test vigila que nadie relaje
+  los presets sin enterarse.
+- Esto sigue siendo el **banco de pruebas** de la métrica 5, no la configuración de
+  producción: la respuesta de §9 para producción sigue apuntando a un modelo local —
+  que entrará por este mismo `Transporte` sin tocar el proveedor.
+
+**Lo que aún no se ha medido:** el LLM real contra telemetría con inyecciones reales
+(envolver `corpus/propuestas/` en eventos hostiles y medir la tasa de veneno que muere
+en gates). El banco ya está conectado; ese experimento es el siguiente.
