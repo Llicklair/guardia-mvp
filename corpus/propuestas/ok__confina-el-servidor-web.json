@@ -1,0 +1,11 @@
+{
+  "id": "prop-0003",
+  "tipo": "confinamiento",
+  "descripcion": "El servidor web no necesita ejecutar interpretes ni escribir en /etc",
+  "incidente": "inc-0001",
+  "cuerpo": {
+    "perfil": "nginx-endurecido",
+    "rutas_denegadas": ["/etc/shadow", "/root", "/home"],
+    "syscalls_denegadas": ["ptrace", "mount", "kexec_load"]
+  }
+}

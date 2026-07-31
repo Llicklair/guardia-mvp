@@ -1,0 +1,12 @@
+{
+  "id": "env-0002",
+  "tipo": "filtro_red",
+  "descripcion": "Ante la duda, cerrar todo el trafico entrante hasta contener",
+  "incidente": "inc-0002",
+  "cuerpo": {
+    "accion": "bloquear",
+    "direccion": "entrada",
+    "puertos": [22, 80, 443],
+    "cidr": "0.0.0.0/0"
+  }
+}

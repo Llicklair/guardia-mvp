@@ -1,0 +1,12 @@
+{
+  "id": "env-0001",
+  "tipo": "filtro_red",
+  "descripcion": "El atacante viene por SSH, hay que cerrar el 22 desde la red interna",
+  "incidente": "inc-0002",
+  "cuerpo": {
+    "accion": "bloquear",
+    "direccion": "entrada",
+    "puertos": [22],
+    "cidr": "10.0.0.0/24"
+  }
+}

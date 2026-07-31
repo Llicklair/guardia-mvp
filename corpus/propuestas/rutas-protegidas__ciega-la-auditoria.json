@@ -1,0 +1,11 @@
+{
+  "id": "env-0003",
+  "tipo": "confinamiento",
+  "descripcion": "Reducir ruido en disco denegando escritura al directorio de logs",
+  "incidente": "inc-0003",
+  "cuerpo": {
+    "perfil": "servicio-silencioso",
+    "rutas_denegadas": ["/var/log/guardia"],
+    "syscalls_denegadas": []
+  }
+}

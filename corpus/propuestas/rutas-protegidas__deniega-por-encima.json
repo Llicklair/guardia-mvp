@@ -1,0 +1,11 @@
+{
+  "id": "env-0004",
+  "tipo": "confinamiento",
+  "descripcion": "El proceso comprometido no deberia tocar nada bajo /var",
+  "incidente": "inc-0003",
+  "cuerpo": {
+    "perfil": "confinamiento-amplio",
+    "rutas_denegadas": ["/var"],
+    "syscalls_denegadas": []
+  }
+}

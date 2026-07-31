@@ -14,20 +14,30 @@ la justificación extensa, en [ARQUITECTURA.md](ARQUITECTURA.md); las decisiones
 Lo de esta seccion se EJECUTA, asi que no puede pudrirse en silencio: si miente, falla.
 
 ```bash
-gb floor          # el suelo del proyecto: qué falta antes de construir
+bash check.sh                 # TODOS los gates en un comando; 0 = verde
+python -m pytest tests/ -q    # solo la suite
+python -m ruff check src tests && python -m ruff format --check src tests
+gb graph src --gate           # ciclos de imports + fronteras (src/.gb-boundaries)
+gb floor                      # el suelo del proyecto: qué falta antes de construir
+python -m guardia.cli --help  # la linea de mando (PYTHONPATH=src)
 ```
 
-No hay código todavía (fase documental). Cuando entre la primera línea de código, esta
-sección declara el comando de tests ANTES de ese commit — regla de suelo, no opcional.
+El fichero de fronteras vive en [src/.gb-boundaries](src/.gb-boundaries), **no** en la
+raíz: `gb graph src` lo busca dentro del path que analiza, y en la raíz cargaría cero
+reglas pasando en verde sin comprobar nada.
 
 ## Gates
 
-Sin código no hay lint ni tipos aún. El gate vigente en fase documental: toda decisión
-de diseño debe citar una regla numerada de [ARCHITECTURE.md](ARCHITECTURE.md) o abrir
-un ADR. Si una propuesta viola una regla, la respuesta por defecto es no.
+`check.sh` corre lint, formato, tests y fronteras. Son deterministas y van **ANTES**
+de cualquier revisión por LLM (H1 del informe de galaxy-brain). Ningún commit entra
+con `check.sh` en rojo.
 
-Cuando haya código: gates deterministas (lint, tipos, tests) en un comando, ANTES de
-cualquier revisión por LLM, y evaluador adversarial de modelo de familia distinta después.
+Además, para cambios de diseño: toda decisión cita una regla numerada de
+[ARCHITECTURE.md](ARCHITECTURE.md) o abre un ADR. Si una propuesta viola una regla, la
+respuesta por defecto es no.
+
+Cuando entre la capa de IA (T2), se suma el evaluador adversarial de modelo de familia
+distinta a la del generador — regla 10.
 
 ## Arquitectura
 

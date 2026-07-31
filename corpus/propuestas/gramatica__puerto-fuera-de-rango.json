@@ -1,0 +1,11 @@
+{
+  "id": "env-0009",
+  "tipo": "filtro_red",
+  "descripcion": "Filtro con un puerto que no existe",
+  "cuerpo": {
+    "accion": "bloquear",
+    "direccion": "salida",
+    "puertos": [70000],
+    "cidr": "203.0.113.0/24"
+  }
+}

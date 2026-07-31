@@ -1,0 +1,34 @@
+# Fronteras de importacion. Las comprueba `gb graph src --gate`.
+# Sintaxis: SRC -/-> DST  ("ningun modulo bajo SRC puede importar uno bajo DST").
+#
+# La direccion que importa: los modulos de abajo (autoridad, registro) no pueden
+# depender de los de arriba. Si `actores` acabara importando `politica`, la
+# comprobacion de autoridad pasaria a depender de lo que se este proponiendo, que
+# es exactamente lo que la regla 3 prohibe.
+
+# El nucleo de autoridad no depende de nada del dominio.
+guardia.actores -/-> guardia.politica
+guardia.actores -/-> guardia.invariantes
+guardia.actores -/-> guardia.kill_switch
+guardia.actores -/-> guardia.cli
+
+# El log no depende de lo que registra.
+guardia.auditoria -/-> guardia.politica
+guardia.auditoria -/-> guardia.invariantes
+guardia.auditoria -/-> guardia.kill_switch
+guardia.auditoria -/-> guardia.cli
+
+# La gramatica no conoce ni invariantes ni interruptor: es solo forma.
+guardia.politica -/-> guardia.invariantes
+guardia.politica -/-> guardia.kill_switch
+guardia.politica -/-> guardia.cli
+
+# Los invariantes leen propuestas, pero no tocan el interruptor ni la CLI.
+guardia.invariantes -/-> guardia.kill_switch
+guardia.invariantes -/-> guardia.cli
+
+# El interruptor no depende del dominio de politica: tiene que funcionar aunque
+# todo lo demas este roto.
+guardia.kill_switch -/-> guardia.politica
+guardia.kill_switch -/-> guardia.invariantes
+guardia.kill_switch -/-> guardia.cli

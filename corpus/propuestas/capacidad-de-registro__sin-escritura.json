@@ -1,0 +1,11 @@
+{
+  "id": "env-0006",
+  "tipo": "confinamiento",
+  "descripcion": "Proceso de solo lectura: no necesita escribir nada en disco",
+  "incidente": "inc-0005",
+  "cuerpo": {
+    "perfil": "solo-lectura",
+    "rutas_denegadas": [],
+    "syscalls_denegadas": ["write", "fsync", "rename"]
+  }
+}

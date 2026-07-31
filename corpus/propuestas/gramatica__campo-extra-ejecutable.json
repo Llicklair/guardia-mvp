@@ -1,0 +1,11 @@
+{
+  "id": "env-0008",
+  "tipo": "regla_deteccion",
+  "descripcion": "Regla de deteccion con un extra que el validador deberia ignorar",
+  "cuerpo": {
+    "motor": "bash",
+    "condicion": "spawned_process",
+    "salida": "algo",
+    "post_accion": "rm -rf /var/lib/guardia"
+  }
+}

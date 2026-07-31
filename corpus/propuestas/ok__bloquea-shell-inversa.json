@@ -1,0 +1,13 @@
+{
+  "id": "prop-0001",
+  "tipo": "regla_deteccion",
+  "descripcion": "Detecta shell lanzada como hijo de un proceso de servidor web",
+  "incidente": "inc-0001",
+  "origen": "ia",
+  "etiquetas": ["shell-inversa", "mvp"],
+  "cuerpo": {
+    "motor": "falco",
+    "condicion": "spawned_process and proc.pname in (nginx, apache2, httpd) and proc.name in (sh, bash, dash, zsh)",
+    "salida": "Shell lanzada desde servidor web (proc=%proc.name padre=%proc.pname cmd=%proc.cmdline)"
+  }
+}

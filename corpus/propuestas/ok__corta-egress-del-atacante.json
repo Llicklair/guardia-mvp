@@ -1,0 +1,12 @@
+{
+  "id": "prop-0002",
+  "tipo": "filtro_red",
+  "descripcion": "Corta la salida al C2 observado en el incidente",
+  "incidente": "inc-0001",
+  "cuerpo": {
+    "accion": "bloquear",
+    "direccion": "salida",
+    "puertos": [4444, 9001],
+    "cidr": "203.0.113.0/24"
+  }
+}

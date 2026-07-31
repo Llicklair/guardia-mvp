@@ -1,0 +1,2 @@
+{"actor":"automata","datos":{"motivo":"dead-man's switch"},"evento":"congelado","hash":"429e38cb10d62a14862a47305d0834dcf3b32a8567effca54875145268df655f","previo":"0000000000000000000000000000000000000000000000000000000000000000","seq":1,"ts":"2026-07-31T14:12:45+00:00"}
+{"actor":"automata","datos":{"motivo":"ha pasado el rato","razon":"sin autoridad"},"evento":"descongelar_denegado","hash":"555a01b904ba81a8960c3b68b984c21110c6111edfc699fddcefb8796640337a","previo":"429e38cb10d62a14862a47305d0834dcf3b32a8567effca54875145268df655f","seq":2,"ts":"2026-07-31T14:12:45+00:00"}

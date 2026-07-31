@@ -1,0 +1,2 @@
+{"actor":"humano","datos":{"motivo":"arranque"},"evento":"descongelado","hash":"c240e270595b142839f1787bf46c13fdccac335d8c1c5f0ff645b2216973e791","previo":"0000000000000000000000000000000000000000000000000000000000000000","seq":1,"ts":"2026-07-31T14:13:52+00:00"}
+{"actor":"humano","datos":{"motivo":"otro proceso lo congela"},"evento":"congelado","hash":"d318b5ca9a9f2a953580342ca42f1301e7a36de30618e6359a0a5713e7165b96","previo":"c240e270595b142839f1787bf46c13fdccac335d8c1c5f0ff645b2216973e791","seq":2,"ts":"2026-07-31T14:13:52+00:00"}
