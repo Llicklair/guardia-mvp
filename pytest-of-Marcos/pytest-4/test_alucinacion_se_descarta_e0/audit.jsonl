@@ -1,0 +1,1 @@
+{"actor":"ia","datos":{"incidente":"inc-0001","motivo":"no es JSON valido: Expecting value: line 1 column 1 (char 0)"},"evento":"triaje_descartado","hash":"d5b767320512f6f04829d3a012a2a7fa3ac88b800d88f099b31d644d26c9e9b2","previo":"0000000000000000000000000000000000000000000000000000000000000000","seq":1,"ts":"2026-07-31T15:03:09+00:00"}

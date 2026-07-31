@@ -1,2 +1,0 @@
-{"actor":"humano","datos":{"motivo":"arranque"},"evento":"descongelado","hash":"c240e270595b142839f1787bf46c13fdccac335d8c1c5f0ff645b2216973e791","previo":"0000000000000000000000000000000000000000000000000000000000000000","seq":1,"ts":"2026-07-31T14:13:52+00:00"}
-{"actor":"humano","datos":{"motivo":"incidente en curso"},"evento":"congelado","hash":"a9abf0523a1381c3cb9f0814e86994d1f7559f01ee8f3c9395d42e2ffa046b9a","previo":"c240e270595b142839f1787bf46c13fdccac335d8c1c5f0ff645b2216973e791","seq":2,"ts":"2026-07-31T14:13:52+00:00"}

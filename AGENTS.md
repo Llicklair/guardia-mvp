@@ -28,8 +28,15 @@ La CLI `guardia`: `estado` / `congelar` / `descongelar` (interruptor de emergenc
 `forjar` (los cuatro gates → PASS/REJECT/BLOCKER, exit 0/6/5) sobre sandbox, y el ciclo
 de aplicación real: `desplegar` (forja + canary con dead-man's switch + límite de tasa,
 exit 0/6/7), `confirmar <id>` (marca un canary estable, solo humano) y `revisar` (el
-dead-man's switch: revierte los canarios expirados; lo llama el automata). Sin PASS,
-nada se aplica; nada se aplica global de golpe.
+dead-man's switch: revierte los canarios expirados; lo llama el automata) y el ciclo
+completo `responder` (incidente → triaje T2 → despliegue T3). Sin PASS, nada se aplica;
+nada se aplica global de golpe.
+
+T2 (triaje) toma un proveedor intercambiable: `ProveedorHeuristico` (determinista, sin
+IA, el que usa `responder`) y `ProveedorLLM` (detrás de la misma interfaz, **no
+conectado** — lanza en vez de gastar cuota; conectarlo exige OK explícito, ADR 0005).
+T2 solo propone; la propuesta pasa por la gramática cerrada y los gates de T3, así que
+un triaje envenenado por inyección de prompt no consigue aplicar política mala.
 
 El fichero de fronteras vive en [src/.gb-boundaries](src/.gb-boundaries), **no** en la
 raíz: `gb graph src` lo busca dentro del path que analiza, y en la raíz cargaría cero

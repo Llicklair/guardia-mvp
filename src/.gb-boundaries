@@ -61,6 +61,23 @@ guardia.forja -/-> guardia.despliegue
 # incidente -> propuesta -> gates -> aplicacion, y nada por debajo lo importa.
 guardia.despliegue -/-> guardia.cli
 
+# T2 (triaje) solo lee y propone: conoce politica, eventos y auditoria, y NADA de T3.
+# Que no pueda importar forja/despliegue/aplicador es la regla 3 en el grafo: el nivel
+# que genera propuestas no puede alcanzar el que las aplica.
+guardia.triaje -/-> guardia.forja
+guardia.triaje -/-> guardia.despliegue
+guardia.triaje -/-> guardia.motor
+guardia.triaje -/-> guardia.aplicador
+guardia.triaje -/-> guardia.invariantes
+guardia.triaje -/-> guardia.kill_switch
+guardia.triaje -/-> guardia.cli
+
+# Los cimientos no conocen el triaje.
+guardia.actores -/-> guardia.triaje
+guardia.auditoria -/-> guardia.triaje
+guardia.politica -/-> guardia.triaje
+guardia.eventos -/-> guardia.triaje
+
 # Los cimientos siguen sin conocer el despliegue.
 guardia.actores -/-> guardia.despliegue
 guardia.auditoria -/-> guardia.despliegue

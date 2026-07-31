@@ -1,2 +1,0 @@
-{"actor":"humano","datos":{"motivo":"primera"},"evento":"congelado","hash":"b3b576c7fd6882798fdb08f20c7c583e539a2cefd8f0cea13b27f9248c3bd7d3","previo":"0000000000000000000000000000000000000000000000000000000000000000","seq":1,"ts":"2026-07-31T14:13:52+00:00"}
-{"actor":"humano","datos":{"motivo":"segunda"},"evento":"congelado","hash":"52a99321e125dfbf05bb80462e2460228c92afa041dfdade8af523068cfdbdf6","previo":"b3b576c7fd6882798fdb08f20c7c583e539a2cefd8f0cea13b27f9248c3bd7d3","seq":2,"ts":"2026-07-31T14:13:52+00:00"}

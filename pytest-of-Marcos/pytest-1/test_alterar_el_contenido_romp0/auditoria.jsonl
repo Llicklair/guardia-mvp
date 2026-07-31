@@ -1,2 +1,0 @@
-{"actor":"humano","datos":{"motivo":"rutina, nada que ver aqui"},"evento":"congelado","hash":"94b5ba160e8d52488afc37cba48ed354f248571bf21675c86683d9caadae7482","previo":"0000000000000000000000000000000000000000000000000000000000000000","seq":1,"ts":"2026-07-31T14:13:52+00:00"}
-{"actor":"humano","datos":{},"evento":"descongelado","hash":"91bdd69b8a38ce4e812478d049166855463c15531ec6a1abd3b2b9d8637c2a56","previo":"94b5ba160e8d52488afc37cba48ed354f248571bf21675c86683d9caadae7482","seq":2,"ts":"2026-07-31T14:13:52+00:00"}

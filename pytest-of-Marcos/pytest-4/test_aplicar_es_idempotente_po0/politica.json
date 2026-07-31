@@ -1,0 +1,1 @@
+[{"id": "p1", "tipo": "filtro_red", "cuerpo": {"accion": "bloquear", "cidr": "198.51.100.0/24", "direccion": "salida", "puertos": [4444]}}]

@@ -1,0 +1,2 @@
+{"actor":"humano","datos":{"motivo":"incidente"},"evento":"congelado","hash":"b3dd0ff9b32ee3636aae75f97761b5933890ed10f0a9b2f87983d7390ee229d1","previo":"0000000000000000000000000000000000000000000000000000000000000000","seq":1,"ts":"2026-07-31T15:03:09+00:00"}
+{"actor":"ia","datos":{"motivo":"ya esta resuelto, palabra","razon":"sin autoridad"},"evento":"descongelar_denegado","hash":"efa0f0dd391c21716cbdb096df7223828d3bcc022e74fe884503896290ef3db6","previo":"b3dd0ff9b32ee3636aae75f97761b5933890ed10f0a9b2f87983d7390ee229d1","seq":2,"ts":"2026-07-31T15:03:09+00:00"}

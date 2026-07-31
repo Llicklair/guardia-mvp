@@ -20,6 +20,7 @@ from .forja import Forja, Resultado
 from .invariantes import Config, comprobar
 from .kill_switch import Interruptor
 from .politica import PropuestaInvalida, desde_json
+from .triaje import ProveedorHeuristico, Triaje
 
 RAIZ = Path(__file__).resolve().parent.parent.parent
 BENIGNO_POR_DEFECTO = RAIZ / "corpus" / "eventos" / "benigno.jsonl"
@@ -184,6 +185,27 @@ def _cmd_revisar(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_responder(args: argparse.Namespace) -> int:
+    """El ciclo completo: incidente → triaje (T2) → despliegue (T3). Con el proveedor
+    heuristico determinista; el LLM real va detras de la misma interfaz y no se invoca
+    sin OK (gasta cuota). Demuestra la tesis end-to-end sin salir de lo determinista."""
+    interruptor = _interruptor(args)
+    incidente = cargar(args.incidente)
+    triaje = Triaje(ProveedorHeuristico(), interruptor.auditoria)
+    propuesta = triaje.proponer(incidente)
+    if propuesta is None:
+        print(f"T2: sin propuesta para '{incidente.nombre}' (nada evidente que contener)")
+        return 1
+    print(f"T2 propone: '{propuesta.id}' ({propuesta.tipo.value})")
+
+    despacho = _despliegue(args).desplegar(propuesta)
+    destino = sys.stdout if despacho.aplicado else sys.stderr
+    print(f"T3: {despacho.estado.value} — {despacho.motivo}", file=destino)
+    return {Estado.APLICADO_CANARY: 0, Estado.RECHAZADO_GATE: 6, Estado.RECHAZADO_TASA: 7}[
+        despacho.estado
+    ]
+
+
 def construir_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="guardia",
@@ -250,6 +272,15 @@ def construir_parser() -> argparse.ArgumentParser:
 
     revisar = sub.add_parser("revisar", help="dead-man's switch: revierte canarios expirados")
     revisar.set_defaults(func=_cmd_revisar)
+
+    responder = sub.add_parser(
+        "responder", help="ciclo completo: incidente -> triaje (T2) -> despliegue (T3)"
+    )
+    responder.add_argument(
+        "--incidente", default=str(INCIDENTE_POR_DEFECTO), help="repro del incidente (JSONL)"
+    )
+    responder.add_argument("--benigno", default=str(BENIGNO_POR_DEFECTO), help="corpus benigno")
+    responder.set_defaults(func=_cmd_responder)
 
     return parser
 

@@ -1,0 +1,1 @@
+[{"id": "auto-inc-0001-egress", "tipo": "filtro_red", "cuerpo": {"accion": "bloquear", "cidr": "203.0.113.0/24", "direccion": "salida", "puertos": [4444, 9001]}}]
