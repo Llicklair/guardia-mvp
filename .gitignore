@@ -7,3 +7,5 @@ __pycache__/
 
 # grafos regenerables con gb symbols/graph
 docs/grafo-*.html
+pytest-of-*/
+/tmp*/

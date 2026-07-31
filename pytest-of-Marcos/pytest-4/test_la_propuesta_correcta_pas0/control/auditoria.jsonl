@@ -1,2 +1,0 @@
-{"actor":"humano","datos":{"motivo":"arranque del test"},"evento":"descongelado","hash":"db064d5f94f4af6e31478cac6c4972245e61faa8223e9c9bd80f66a55544c7d6","previo":"0000000000000000000000000000000000000000000000000000000000000000","seq":1,"ts":"2026-07-31T15:03:08+00:00"}
-{"actor":"automata","datos":{"gate":"todos","propuesta":"ok","resultado":"PASS"},"evento":"forja_veredicto","hash":"153ec65dce5de9c31c0be5928ca4f59fe453a728c83b628db80c0ae1b77d79e6","previo":"db064d5f94f4af6e31478cac6c4972245e61faa8223e9c9bd80f66a55544c7d6","seq":2,"ts":"2026-07-31T15:03:08+00:00"}

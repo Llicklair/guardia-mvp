@@ -1,2 +1,0 @@
-{"actor":"humano","datos":{"motivo":"incidente"},"evento":"congelado","hash":"b2c422d22cd79e1caff38738fd2cba932957f3f7711e1cf9a44e161415d884d7","previo":"0000000000000000000000000000000000000000000000000000000000000000","seq":1,"ts":"2026-07-31T15:03:08+00:00"}
-{"actor":"automata","datos":{"gate":"gate-0-interruptor","propuesta":"ok","resultado":"REJECT"},"evento":"forja_veredicto","hash":"4282becef0e943f7b37575596232280df992c2e4608686b2458e177a7240489a","previo":"b2c422d22cd79e1caff38738fd2cba932957f3f7711e1cf9a44e161415d884d7","seq":2,"ts":"2026-07-31T15:03:08+00:00"}
