@@ -20,7 +20,13 @@ python -m ruff check src tests && python -m ruff format --check src tests
 gb graph src --gate           # ciclos de imports + fronteras (src/.gb-boundaries)
 gb floor                      # el suelo del proyecto: qué falta antes de construir
 python -m guardia.cli --help  # la linea de mando (PYTHONPATH=src)
+python -m guardia.cli forjar <prop.json>   # corre una propuesta por los 4 gates (regla 6)
 ```
+
+La CLI `guardia`: `estado` / `congelar` / `descongelar` (interruptor de emergencia),
+`auditoria [--verificar]` (log encadenado), `validar` (gramática + invariantes) y
+`forjar` (los cuatro gates → PASS/REJECT/BLOCKER, exit 0/6/5). `forjar` trabaja sobre un
+sandbox y no aplica a producción: sin PASS, nada se aplica.
 
 El fichero de fronteras vive en [src/.gb-boundaries](src/.gb-boundaries), **no** en la
 raíz: `gb graph src` lo busca dentro del path que analiza, y en la raíz cargaría cero

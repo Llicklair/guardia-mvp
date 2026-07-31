@@ -1,0 +1,9 @@
+{"tipo": "red", "direccion": "salida", "puerto": 443, "ip": "10.0.0.20", "etiqueta": "https-a-servicio-interno"}
+{"tipo": "red", "direccion": "salida", "puerto": 53, "ip": "10.0.0.2", "etiqueta": "dns-interno"}
+{"tipo": "red", "direccion": "salida", "puerto": 5432, "ip": "10.0.0.30", "etiqueta": "postgres-interno"}
+{"tipo": "red", "direccion": "entrada", "puerto": 8080, "ip": "10.0.0.50", "etiqueta": "peticion-web-legitima"}
+{"tipo": "red", "direccion": "salida", "puerto": 4444, "ip": "10.0.0.40", "etiqueta": "servicio-interno-en-4444-casualidad"}
+{"tipo": "proceso", "nombre": "python3", "ancestros": ["containerd-shim"], "cmdline": "python3 servidor.py", "abre_conexion_saliente": false, "etiqueta": "arranque-servidor-web"}
+{"tipo": "proceso", "nombre": "ping", "ancestros": ["sh", "python3"], "cmdline": "ping -c 1 10.0.0.20", "etiqueta": "ping-legitimo-del-servidor"}
+{"tipo": "fichero", "ruta": "/var/log/app/acceso.log", "syscall": "write", "etiqueta": "log-de-aplicacion-normal"}
+{"tipo": "fichero", "ruta": "/tmp/cache-123", "syscall": "write", "etiqueta": "cache-temporal"}

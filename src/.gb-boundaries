@@ -32,3 +32,26 @@ guardia.invariantes -/-> guardia.cli
 guardia.kill_switch -/-> guardia.politica
 guardia.kill_switch -/-> guardia.invariantes
 guardia.kill_switch -/-> guardia.cli
+guardia.kill_switch -/-> guardia.forja
+guardia.kill_switch -/-> guardia.motor
+guardia.kill_switch -/-> guardia.aplicador
+
+# La telemetria es solo forma de dato: no conoce politica ni motor ni forja.
+guardia.eventos -/-> guardia.politica
+guardia.eventos -/-> guardia.motor
+guardia.eventos -/-> guardia.forja
+guardia.eventos -/-> guardia.cli
+
+# El motor de replay lee propuestas y eventos, pero no orquesta nada por encima.
+guardia.motor -/-> guardia.forja
+guardia.motor -/-> guardia.aplicador
+guardia.motor -/-> guardia.kill_switch
+guardia.motor -/-> guardia.cli
+
+# El aplicador maneja estado; no depende del motor, la forja ni la CLI.
+guardia.aplicador -/-> guardia.motor
+guardia.aplicador -/-> guardia.forja
+guardia.aplicador -/-> guardia.cli
+
+# La forja es el techo del dominio (junto con la CLI): nada la importa hacia abajo.
+guardia.forja -/-> guardia.cli

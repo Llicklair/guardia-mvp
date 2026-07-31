@@ -13,9 +13,16 @@ import sys
 from pathlib import Path
 
 from .actores import Actor, SinAutoridad
+from .aplicador import Aplicador
+from .eventos import cargar
+from .forja import Forja, Resultado
 from .invariantes import Config, comprobar
 from .kill_switch import Interruptor
 from .politica import PropuestaInvalida, desde_json
+
+RAIZ = Path(__file__).resolve().parent.parent.parent
+BENIGNO_POR_DEFECTO = RAIZ / "corpus" / "eventos" / "benigno.jsonl"
+INCIDENTE_POR_DEFECTO = RAIZ / "corpus" / "eventos" / "incidente-0001.jsonl"
 
 
 def _interruptor(args: argparse.Namespace) -> Interruptor:
@@ -94,8 +101,31 @@ def _cmd_validar(args: argparse.Namespace) -> int:
             print(f"  {violacion}", file=sys.stderr)
         return 5
     print(f"propuesta '{propuesta.id}' ({propuesta.tipo.value}): gramatica OK, invariantes OK")
-    print("aun NO aplicable: faltan los cuatro gates de la regla 6.")
+    print("para saber si es APLICABLE, pasala por 'guardia forjar' (los cuatro gates).")
     return 0
+
+
+def _cmd_forjar(args: argparse.Namespace) -> int:
+    """Corre la propuesta por los cuatro gates de la regla 6. No aplica a produccion:
+    trabaja sobre un sandbox y deja un veredicto. Sin PASS, nada se aplica."""
+    texto = Path(args.fichero).read_text(encoding="utf-8") if args.fichero else sys.stdin.read()
+    try:
+        propuesta = desde_json(texto)
+    except PropuestaInvalida as e:
+        print(f"DESCARTADA (no encaja en la gramatica): {e}", file=sys.stderr)
+        return 2
+
+    interruptor = _interruptor(args)
+    forja = Forja(
+        interruptor=interruptor,
+        aplicador=Aplicador(interruptor.directorio / "sandbox-politica.json"),
+        benigno=cargar(args.benigno),
+        incidente=cargar(args.incidente),
+    )
+    veredicto = forja.evaluar(propuesta)
+    destino = sys.stdout if veredicto.aplicable else sys.stderr
+    print(f"propuesta '{propuesta.id}': {veredicto}", file=destino)
+    return {Resultado.PASS: 0, Resultado.REJECT: 6, Resultado.BLOCKER: 5}[veredicto.resultado]
 
 
 def construir_parser() -> argparse.ArgumentParser:
@@ -138,6 +168,16 @@ def construir_parser() -> argparse.ArgumentParser:
     validar = sub.add_parser("validar", help="valida una propuesta contra gramatica e invariantes")
     validar.add_argument("fichero", nargs="?", help="JSON de la propuesta (por defecto, stdin)")
     validar.set_defaults(func=_cmd_validar)
+
+    forjar = sub.add_parser("forjar", help="corre una propuesta por los cuatro gates (regla 6)")
+    forjar.add_argument("fichero", nargs="?", help="JSON de la propuesta (por defecto, stdin)")
+    forjar.add_argument(
+        "--benigno", default=str(BENIGNO_POR_DEFECTO), help="corpus benigno (JSONL)"
+    )
+    forjar.add_argument(
+        "--incidente", default=str(INCIDENTE_POR_DEFECTO), help="repro del incidente (JSONL)"
+    )
+    forjar.set_defaults(func=_cmd_forjar)
 
     return parser
 

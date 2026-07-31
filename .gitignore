@@ -4,3 +4,6 @@ __pycache__/
 .ruff_cache/
 *.egg-info/
 .venv/
+
+# grafos regenerables con gb symbols/graph
+docs/grafo-*.html

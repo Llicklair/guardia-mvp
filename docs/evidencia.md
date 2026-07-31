@@ -107,3 +107,37 @@ marca como validada. Y la conclusión operativa, que ya anticipaba
 [lab/README.md](../lab/README.md): **para trabajo sostenido el laboratorio se mueve a una
 VM Linux con kernel estable**; Docker Desktop sobre WSL2 sirvió para probar el escenario
 una vez, no como banco de pruebas fiable. Se registra como negativo, no se maquilla.
+
+## 2026-07-31 · Los cuatro gates de la regla 6, ¿rechazan lo que deben? — PASA
+
+**Montaje.** Forja determinista (`guardia forjar`) que corre una propuesta por los
+gates en orden: interruptor operativo → invariantes → replay benigno → replay malicioso
+→ rollback probado. Corpus de eventos en [corpus/eventos/](../corpus/eventos/): benigno
+con una trampa (conexión interna legítima al puerto 4444, el mismo del C2) e incidente
+con el repro de la shell inversa. Una propuesta escrita para fallar en cada gate.
+
+**Resultado (108 tests, e2e por CLI).** Cada gate rechaza por su motivo:
+- Propuesta correcta (corta el C2 por IP+puerto): **PASS**, exit 0.
+- Bloquear SSH del admin: **BLOCKER** en gate-1-invariantes, exit 5.
+- Bloquear *todo* el 4444 (`0.0.0.0/0`): **REJECT** en gate-2-replay-benigno — pilla el
+  servicio interno legítimo. Es la trampa del corpus funcionando: una regla que parece
+  contener el ataque pero rompe tráfico normal.
+- Bloquear una IP que no es la del C2: **REJECT** en gate-3-replay-malicioso, no cubre
+  el repro.
+- Capa de IA congelada: **REJECT** en gate-0, ni se evalúa. El interruptor manda sobre
+  la forja.
+- Y la cadena de auditoría sigue intacta tras cada veredicto (cada uno queda registrado).
+
+**Prueba real del rollback (gate 4).** No es documentación: la forja aplica la propuesta
+en un sandbox, revierte de verdad, y compara por hash que el estado vuelve exacto. El
+test `test_la_forja_deja_el_sandbox_limpio` confirma que tras evaluar —pase o falle— el
+estado activo vuelve a vacío. Un cambio cuyo rollback no restaura el hash exacto es
+REJECT.
+
+**Límite de alcance, dicho de frente.** El motor de replay cubre `filtro_red` y
+`confinamiento` con matching determinista completo. **NO** cubre `regla_deteccion`: su
+banco es el motor de Falco (regla 9, no se reimplementa), así que la forja la marca
+`gate-replay-no-soportado` → REJECT honesto en vez de un PASS que no significaría nada.
+Consecuencia práctica: hoy el ciclo completo se demuestra con el filtro de egress (cortar
+el C2), no con la regla de detección de Falco. Las dos son respuestas válidas al mismo
+incidente; la detección espera a que el banco de Falco sea fiable (ver negativo anterior).
