@@ -87,3 +87,28 @@ guardia.eventos -/-> guardia.despliegue
 guardia.motor -/-> guardia.despliegue
 guardia.aplicador -/-> guardia.despliegue
 guardia.kill_switch -/-> guardia.despliegue
+
+# El banco (metrica 5) es instrumentacion: observa el ciclo desde fuera y NADA del
+# sistema lo importa. Si un modulo del producto necesitara el banco para funcionar,
+# la medicion habria pasado a formar parte de lo medido.
+guardia.actores -/-> guardia.banco
+guardia.auditoria -/-> guardia.banco
+guardia.politica -/-> guardia.banco
+guardia.invariantes -/-> guardia.banco
+guardia.eventos -/-> guardia.banco
+guardia.motor -/-> guardia.banco
+guardia.aplicador -/-> guardia.banco
+guardia.kill_switch -/-> guardia.banco
+guardia.forja -/-> guardia.banco
+guardia.despliegue -/-> guardia.banco
+guardia.triaje -/-> guardia.banco
+# (la CLI si lo importa: es quien lo expone al humano, como con el despliegue)
+
+# Y el banco no toca la maquinaria por dentro: mide el ciclo por su superficie
+# publica (T2 propone, T3 despliega). Si necesitara el aplicador o el motor, estaria
+# midiendo las tripas en vez del comportamiento.
+guardia.banco -/-> guardia.aplicador
+guardia.banco -/-> guardia.motor
+guardia.banco -/-> guardia.forja
+guardia.banco -/-> guardia.invariantes
+guardia.banco -/-> guardia.cli
