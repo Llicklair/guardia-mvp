@@ -28,17 +28,27 @@ from guardia.triaje import ProveedorHeuristico, Triaje
 _TODOS = tuple(o.incidente for o in __import__("guardia.banco", fromlist=["OBJETIVOS"]).OBJETIVOS)
 
 
-def _banco(tmp_path, proveedor):
-    interruptor = Interruptor(tmp_path / "control")
-    interruptor.descongelar(Actor.HUMANO, "banco")
+def _despliegue(tmp_path, interruptor, sufijo):
     forja = Forja(
         interruptor,
-        Aplicador(tmp_path / "sandbox.json"),
+        Aplicador(tmp_path / f"sandbox{sufijo}.json"),
         cargar(str(BENIGNO_POR_DEFECTO)),
         cargar(str(INCIDENTE_POR_DEFECTO)),
     )
-    despliegue = Despliegue(forja, tmp_path / "desp")
-    return Banco(Triaje(proveedor, interruptor.auditoria), despliegue, INYECCIONES_POR_DEFECTO)
+    return Despliegue(forja, tmp_path / f"desp{sufijo}")
+
+
+def _banco(tmp_path, proveedor, *, aislado=True):
+    """Por defecto, un T3 limpio por incidente. `aislado=False` reproduce a proposito
+    el fallo de instrumentacion que tuvo el banco en su primera medicion."""
+    interruptor = Interruptor(tmp_path / "control")
+    interruptor.descongelar(Actor.HUMANO, "banco")
+    if aislado:
+        crear = lambda incidente: _despliegue(tmp_path, interruptor, f"-{incidente}")  # noqa: E731
+    else:
+        compartido = _despliegue(tmp_path, interruptor, "-compartido")
+        crear = lambda _incidente: compartido  # noqa: E731
+    return Banco(Triaje(proveedor, interruptor.auditoria), crear, INYECCIONES_POR_DEFECTO)
 
 
 class ProveedorFijo:
@@ -153,6 +163,36 @@ def test_el_banco_corre_entero_con_el_heuristico(tmp_path):
     informe = banco.correr()
     assert informe.politicas_malas_aplicadas == 0
     assert len(informe.resultados) == 6
+
+
+def test_un_despliegue_compartido_contamina_la_medicion_y_el_banco_lo_grita(tmp_path):
+    """La regresion de un fallo real del instrumento, no una hipotesis.
+
+    La primera medicion con LLM corrio los seis incidentes contra UN despliegue: el
+    cupo del limite de tasa se agoto y el ultimo incidente salio 'no contuvo' sin
+    haber pasado por ningun gate. El numero parecia bueno (0 politicas aplicadas) y
+    estaba mal medido. Ahora eso es MEDICION_INVALIDA y el informe entero queda en
+    cuarentena: `valido` es False y la CLI sale != 0.
+
+    Hace falta un proveedor cuyas propuestas SE APLIQUEN para agotar el cupo: un
+    rechazo por gate no lo consume (esa defensa ya estaba y funciona), asi que con el
+    heuristico —que falla algun gate por el camino— la contaminacion no aflora. Con el
+    LLM real, que contuvo cinco seguidas, si afloro."""
+    banco = _banco(
+        tmp_path,
+        ProveedorFijo(_filtro("corta-c2", [4444, 9001], "203.0.113.7/32")),
+        aislado=False,
+    )
+    informe = banco.correr()
+    assert informe.sin_medir > 0, "con cupo compartido tiene que agotarse la tasa"
+    assert not informe.valido
+
+
+def test_aislado_no_hay_ninguna_medicion_invalida(tmp_path):
+    """El contraste del test de arriba: con un T3 por incidente, los seis se miden."""
+    informe = _banco(tmp_path, ProveedorHeuristico()).correr()
+    assert informe.sin_medir == 0
+    assert informe.valido
 
 
 def test_ni_siquiera_el_heuristico_es_inmune_al_desvio(tmp_path):
