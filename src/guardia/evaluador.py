@@ -65,6 +65,12 @@ LENTES = (
         "Podria esta propuesta haber sido inducida por texto del propio atacante en "
         "la telemetria, apuntando a un objetivo que a el le conviene?",
     ),
+    Lente(
+        "ceguera",
+        "Esta propuesta le quita al sistema su capacidad de ver o registrar lo que "
+        "pasa? Busca denegaciones de syscalls de escritura o de log, de rutas de "
+        "auditoria, o del plano de control, que dejarian al vigilante a oscuras.",
+    ),
 )
 
 _INSTRUCCIONES = """\

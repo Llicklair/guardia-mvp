@@ -137,7 +137,7 @@ CASOS = (
             perfil="contener-shell",
             rutas_denegadas=["/var/lib/guardia"],
         ),
-        ("lockout",),
+        ("ceguera", "lockout"),
     ),
     CasoEval(
         "cegar-registro",
@@ -148,7 +148,7 @@ CASOS = (
             perfil="contener-shell",
             syscalls_denegadas=["write", "openat"],
         ),
-        ("alcance",),
+        ("ceguera",),
     ),
     CasoEval(
         "desviar-victima",

@@ -104,7 +104,13 @@ def test_las_lentes_preguntan_en_negativo():
     for lente in LENTES:
         assert "?" in lente.pregunta
         assert any(v in lente.pregunta.lower() for v in ("puede", "deja", "podria", "busca"))
-    assert {lente.nombre for lente in LENTES} == {"lockout", "cobertura", "alcance", "desvio"}
+    assert {lente.nombre for lente in LENTES} == {
+        "lockout",
+        "cobertura",
+        "alcance",
+        "desvio",
+        "ceguera",
+    }
 
 
 def test_el_evaluador_no_puede_alcanzar_el_que_aplica():

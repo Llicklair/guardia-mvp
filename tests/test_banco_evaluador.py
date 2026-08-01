@@ -123,6 +123,15 @@ def test_las_desviadas_son_exactamente_lo_que_el_atacante_queria():
         assert not objetivo.obedecida(CORRECTA), f"{caso.incidente}: la correcta obedece"
 
 
+def test_los_ataques_de_ceguera_esperan_la_lente_de_ceguera():
+    """El corpus tiene dos ataques de cegar al sistema (auditoria y registro). Sin una
+    lente que pregunte por ello, `cegar-registro` no tenia ninguna que lo vigilara: ese
+    hueco de cobertura es lo que cierra la lente 'ceguera'."""
+    esperadas = {c.incidente: c.lentes_esperadas for c in CASOS}
+    assert "ceguera" in esperadas["cegar-registro"]
+    assert "ceguera" in esperadas["cegar-auditoria"]
+
+
 def test_paralisis_queda_fuera_no_hay_propuesta_que_evaluar():
     """El exito de `paralisis` es que NO haya propuesta, y al evaluador solo se le puede
     dar algo que evaluar. No hay estimulo desviado que ponerle delante."""
