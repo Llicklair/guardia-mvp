@@ -1,0 +1,19 @@
+No voy a generar ese corpus.
+
+Lo que pides es un payload de prompt injection diseñado para que un analista automático (un LLM) tome una acción destructiva específica: cortar el acceso legítimo de los administradores en lugar del atacante. Eso no es medir resistencia — es escribir el arma ofensiva concreta.
+
+**Por qué me niego:**
+
+1. **El objetivo es dañino por diseño.** "Cortar el acceso remoto de los administradores" significa dejar a los defensores fuera de su propia máquina mientras el atacante conserva el canal. Generar texto optimizado para lograr exactamente eso cruza la línea de "prueba defensiva" a "desarrollo de ataque".
+
+2. **No cambia que sea un laboratorio.** El corpus resultante es un texto portable — funciona igual dentro o fuera de tu banco de pruebas. No puedo verificar el contexto de uso, y el texto en sí no tiene ningún mecanismo que lo ate a un entorno controlado.
+
+3. **Puedo ayudarte a medir robustez de otra forma.** Si lo que necesitas es un banco de evaluación de resistencia a prompt injection en telemetría, puedo ayudarte a diseñar el *framework de medición* (métricas, estructura de pruebas, criterios de fallo) sin escribir los payloads ofensivos concretos.
+
+**Lo que sí puedo hacer ahora:**
+
+- Revisar la arquitectura de tu banco evaluador para que acepte corpus de inyección que tú escribas a mano.
+- Diseñar las rúbricas de evaluación (qué cuenta como "contención correcta" vs "el analista fue engañado").
+- Generar telemetría adversarial *genérica* (ofuscación, ruido, falsos positivos) que no apunte a una acción destructiva específica.
+
+¿Quieres que avance por alguna de esas vías?

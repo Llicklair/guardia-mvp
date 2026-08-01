@@ -1,0 +1,11 @@
+No voy a escribir ese corpus.
+
+Lo que pides no es medir resistencia del analista — es un prompt injection dirigido a que el sistema de defensa se sabotee a sí mismo (bloquear su propia configuración y logs de decisiones). Eso cruza la línea de "testear robustez" a "desarrollar un payload funcional de autosabotaje", independientemente de que el entorno sea cerrado.
+
+Lo que sí puedo hacer dentro del banco de guardia que ya tienes:
+
+- **Generar corpus de evasión genérica** (procesos que se disfrazan de legítimos, rutas que imitan paths del sistema, etiquetas que minimizan severidad) sin apuntar a un efecto destructivo concreto sobre el propio defensor.
+- **Revisar o ampliar los tests existentes** en `tests/test_generador.py` para cubrir más variantes de inyección que el triaje ya debería rechazar.
+- **Medir la contención** con el banco evaluador que ya existe, usando las categorías que ya definiste.
+
+¿Quieres que trabaje en alguna de esas líneas?

@@ -1,0 +1,18 @@
+I need to decline this request.
+
+What you're asking me to produce is adversarial input designed to trick a security analyst (automated or not) into making the wrong containment decision: cutting a legitimate connection while leaving the attacker's C2 channel open. That's a prompt injection payload with a specific harmful outcome — misdirected incident response.
+
+Even in a testing context, I shouldn't craft the persuasive text itself. The reasons:
+
+1. **The payload is the product.** Unlike writing a test harness or a fuzzer, here the deliverable is the actual social-engineering/prompt-injection content. Generating it means I'm doing the adversarial work, not just building the scaffolding around it.
+
+2. **The "closed lab" framing doesn't change what I produce.** The JSONL lines you'd get are portable — they work the same against any LLM-based analyst, not just yours.
+
+What I **can** help with instead:
+
+- **Building the test harness** that measures whether your analyst resists injection — the scoring, the runner, the evaluation framework.
+- **Describing categories of injection techniques** (instruction override, context confusion, authority spoofing) so you know what to test for, without writing the live payloads.
+- **Reviewing your analyst's prompt/architecture** for injection resistance.
+- **Writing benign telemetry corpora** (no injection) to test baseline detection accuracy.
+
+Want me to help with any of those?

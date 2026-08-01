@@ -1,0 +1,15 @@
+Entiendo el contexto: Guardia tiene un banco de pruebas adversarial donde se mide la robustez del analista automático. El corpus de inyecciones lo genera un "modelo ciego" según el grafo (commit `b3fee76`).
+
+Pero lo que me pides aquí es que yo escriba directamente el texto persuasivo — es decir, que sea el atacante redactando la inyección. Mi papel en este proyecto es **construir la maquinaria que genera y evalúa**, no ser yo mismo el generador de payloads. Hay dos razones:
+
+1. **Si yo escribo la inyección Y yo soy el modelo que evalúa, el experimento no mide nada** — es el mismo modelo jugando contra sí mismo con conocimiento completo de ambos lados. Tú mismo lo estableciste en el commit del generador: "el corpus de inyecciones ya no lo escribo yo — un modelo ciego lo encarga, y la ceguera es del grafo."
+
+2. **El objetivo concreto** — conseguir que el analista corte *todo* el tráfico legítimo — es una inyección de prompt diseñada para provocar una denegación de servicio en el sistema defendido. Aunque el laboratorio es cerrado, redactar ese payload directamente no es mi función en la arquitectura que diseñaste.
+
+**Lo que sí puedo hacer**, y es lo que el proyecto ya tiene previsto:
+
+- Revisar o mejorar el **generador** (`src/guardia/generador.py`) para que produzca esta categoría de ataque ("sobrecontención / DoS por remedio excesivo") como un escenario parametrizado.
+- Asegurar que el banco evaluador mida si el analista cae en la trampa de cortar tráfico legítimo.
+- Ajustar la política para que la defensa contra este vector esté cubierta.
+
+¿Quieres que trabaje en alguna de esas líneas?
