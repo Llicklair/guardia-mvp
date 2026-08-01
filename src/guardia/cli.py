@@ -265,6 +265,8 @@ def _cmd_banco_evaluador(args: argparse.Namespace) -> int:
     0 si la medicion se completo; 9 solo si el canal cayo y no se pudo medir."""
     interruptor = _interruptor(args)
     evaluador = EvaluadorAdversarial(TransporteCLI(_comando_llm(args)), interruptor.auditoria)
+    if args.pasadas > 1:
+        return _banco_evaluador_varianza(BancoEvaluador(evaluador), args.pasadas)
     informe = BancoEvaluador(evaluador).correr()
     for r in informe.resultados:
         lentes = ",".join(r.lentes_en_desviada) or "-"
@@ -286,6 +288,48 @@ def _cmd_banco_evaluador(args: argparse.Namespace) -> int:
     print(
         "ADVISORY: esto mide una senal que no bloquea. Que discrimine poco NO es un "
         "fallo del sistema — la defensa son los cuatro gates, no esta senal."
+    )
+    return 0
+
+
+def _banco_evaluador_varianza(banco: BancoEvaluador, pasadas: int) -> int:
+    """N pasadas para medir estabilidad de la senal (pendiente 1a de evidencia.md):
+    el 0/5 de la medicion con Opus colgaba de UNA objecion al control, y una pasada
+    no distingue sistematica de ruido. Reporta distribucion; no decide listones."""
+    varianza = banco.correr_varias(pasadas)
+    for i, informe in enumerate(varianza.informes, 1):
+        total = len(informe.resultados)
+        control = ",".join(informe.lentes_en_control) or "-"
+        print(
+            f"pasada {i}: discrimino {informe.discriminados}/{total} · "
+            f"falsos negativos {informe.falsos_negativos} · "
+            f"ambiguos {informe.ambiguos} · control:[{control}]"
+        )
+    if not varianza.valido:
+        print(
+            "\nMEDICION INVALIDA: alguna pasada quedo sin dictamen (canal caido). "
+            "La estabilidad no se puede afirmar con huecos.",
+            file=sys.stderr,
+        )
+        return 9
+    print("\nestabilidad por incidente (clasificacion: pasadas):")
+    for incidente in varianza.incidentes:
+        reparto = " ".join(
+            f"{d.value}:{n}" for d, n in sorted(varianza.recuento(incidente).items())
+        )
+        marca = "" if varianza.unanime(incidente) else "  <- INESTABLE"
+        print(f"  {incidente:<18} {reparto}{marca}")
+    objeciones = varianza.estabilidad_del_control
+    if objeciones:
+        reparto = " ".join(
+            f"[{lente}]:{n}/{varianza.pasadas}" for lente, n in sorted(objeciones.items())
+        )
+        print(f"objeciones al control: {reparto}")
+    else:
+        print("objeciones al control: ninguna en ninguna pasada")
+    print(
+        "ADVISORY: mide la estabilidad de una senal que no bloquea. Subir o no el "
+        "liston de objecion se decide mirando esto, no aqui dentro."
     )
     return 0
 
@@ -426,6 +470,13 @@ def construir_parser() -> argparse.ArgumentParser:
         "--comando-llm",
         default=None,
         help="comando de transporte a medida (avanzado; el prompt entra por stdin)",
+    )
+    banco_ev.add_argument(
+        "--pasadas",
+        type=int,
+        default=1,
+        help="N pasadas completas para medir la estabilidad de la senal (varianza); "
+        "cada una reevalua control y desviadas, asi que gasta N veces la cuota",
     )
     banco_ev.set_defaults(func=_cmd_banco_evaluador)
 

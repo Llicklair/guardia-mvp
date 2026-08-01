@@ -217,6 +217,65 @@ class InformeEval:
     def valido(self) -> bool:
         return self.sin_medir == 0
 
+    @property
+    def lentes_en_control(self) -> tuple[str, ...]:
+        """Las lentes que objetaron al control (la correcta) en esta pasada. El control
+        es comun a todos los resultados, asi que vale el primero."""
+        return self.resultados[0].lentes_en_correcta if self.resultados else ()
+
+
+@dataclass(frozen=True)
+class InformeVarianza:
+    """N pasadas del banco sobre los mismos estimulos: mide ESTABILIDAD, no decide.
+
+    La pregunta salio de la medicion con Opus (docs/evidencia.md): el 0/5 de
+    discriminacion colgaba de UNA objecion [cobertura] sobre el control. Una pasada
+    sola no distingue 'objecion sistematica' (el evaluador siempre la pone) de 'ruido
+    de muestreo' (salio esa vez); N pasadas si. Esto NO sube ni baja ningun liston —
+    esa es la decision de diseno pendiente, y se toma mirando este reporte, no dentro
+    de el."""
+
+    informes: tuple[InformeEval, ...]
+
+    @property
+    def pasadas(self) -> int:
+        return len(self.informes)
+
+    @property
+    def valido(self) -> bool:
+        """Cuarentena si CUALQUIER pasada quedo sin medir: mezclar pasadas completas
+        con averiadas presentaria como estabilidad lo que son huecos."""
+        return all(i.valido for i in self.informes)
+
+    @property
+    def incidentes(self) -> tuple[str, ...]:
+        return tuple(r.incidente for r in self.informes[0].resultados)
+
+    def recuento(self, incidente: str) -> dict[Discriminacion, int]:
+        """Cuantas pasadas dieron cada clasificacion a este incidente."""
+        cuenta: dict[Discriminacion, int] = {}
+        for informe in self.informes:
+            for r in informe.resultados:
+                if r.incidente == incidente:
+                    cuenta[r.discriminacion] = cuenta.get(r.discriminacion, 0) + 1
+        return cuenta
+
+    def unanime(self, incidente: str) -> bool:
+        """La misma clasificacion en todas las pasadas. Lo NO unanime es lo
+        interesante: senal inestable que una pasada suelta presento como un hecho."""
+        return len(self.recuento(incidente)) == 1
+
+    @property
+    def estabilidad_del_control(self) -> dict[str, int]:
+        """Por lente: en cuantas de las N pasadas objeto al control. La cifra que
+        responde si la objecion que colapso la discriminacion es sistematica (N/N)
+        o ruido (1/N)."""
+        cuenta: dict[str, int] = {}
+        for informe in self.informes:
+            for lente in set(informe.lentes_en_control):
+                cuenta[lente] = cuenta.get(lente, 0) + 1
+        return cuenta
+
 
 @dataclass(frozen=True)
 class BancoEvaluador:
@@ -233,6 +292,15 @@ class BancoEvaluador:
     def correr(self, casos: tuple[CasoEval, ...] = CASOS) -> InformeEval:
         dictamen_correcta = self.evaluador.evaluar(self.correcta)
         return InformeEval(tuple(self._un_caso(c, dictamen_correcta) for c in casos))
+
+    def correr_varias(self, pasadas: int, casos: tuple[CasoEval, ...] = CASOS) -> InformeVarianza:
+        """N pasadas completas e independientes. El control SI se reevalua en cada una
+        —al reves que dentro de una pasada— porque su estabilidad es justo lo que se
+        mide. Contra el heuristico determinista las N salen identicas; la varianza
+        solo puede aparecer contra un modelo real (y gasta N veces la cuota)."""
+        if pasadas < 1:
+            raise ValueError("hacen falta al menos 1 pasada(s) para medir")
+        return InformeVarianza(tuple(self.correr(casos) for _ in range(pasadas)))
 
     def _un_caso(self, caso: CasoEval, dictamen_correcta: Dictamen) -> ResultadoEval:
         dictamen_desviada = self.evaluador.evaluar(caso.desviada)

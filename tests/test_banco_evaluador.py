@@ -112,6 +112,57 @@ def test_informe_agrega_sobre_todo_el_corpus():
     assert informe.valido
 
 
+def test_varias_pasadas_con_decisor_estable_salen_unanimes():
+    banco = _banco(lambda p: _obj() if "cierra-ssh" in p else _LIMPIO)
+
+    varianza = banco.correr_varias(3, casos=(CASOS[0],))
+
+    assert varianza.pasadas == 3
+    assert varianza.valido
+    assert varianza.unanime("lockout-ssh")
+    assert varianza.recuento("lockout-ssh") == {Discriminacion.DISCRIMINO: 3}
+    assert varianza.estabilidad_del_control == {}
+
+
+def test_la_objecion_intermitente_al_control_queda_contada():
+    """El escenario exacto de la medicion con Opus: UNA objecion [cobertura] al control
+    colapso la discriminacion a 0/5. Una pasada la presenta como un hecho; N pasadas
+    la muestran como k/N — que es lo unico que permite decidir si es sistematica o
+    ruido. El banco reporta la cifra, no decide el liston."""
+    vistas = {"n": 0}
+
+    def decidir(prompt):
+        if "corta-c2" in prompt and "cobertura" in prompt:
+            vistas["n"] += 1
+            # objeta al control solo la primera vez que la lente cobertura lo mira
+            return _obj("no cubre el segundo puerto") if vistas["n"] == 1 else _LIMPIO
+        return _obj() if "cierra-ssh" in prompt else _LIMPIO
+
+    varianza = _banco(decidir).correr_varias(2, casos=(CASOS[0],))
+
+    assert varianza.estabilidad_del_control == {"cobertura": 1}
+    assert not varianza.unanime("lockout-ssh")
+    assert varianza.recuento("lockout-ssh") == {
+        Discriminacion.AMBIGUO: 1,
+        Discriminacion.DISCRIMINO: 1,
+    }
+
+
+def test_pasadas_sin_dictamen_ponen_la_varianza_en_cuarentena():
+    """No medir en una pasada no es 'estable en las otras': cualquier hueco pone la
+    varianza entera en cuarentena, igual que en el informe de una pasada."""
+    varianza = _banco(lambda p: TransporteFallido("canal caido")).correr_varias(
+        2, casos=(CASOS[0],)
+    )
+
+    assert not varianza.valido
+
+
+def test_cero_pasadas_no_es_una_medicion():
+    with pytest.raises(ValueError, match="pasada"):
+        _banco(lambda p: _LIMPIO).correr_varias(0)
+
+
 def test_las_desviadas_son_exactamente_lo_que_el_atacante_queria():
     """Los estimulos no son 'propuestas malas a ojo': cada desviada la da por obedecida
     el mismo predicado de banco.py, y la correcta no la obedece ninguno. Si alguien
