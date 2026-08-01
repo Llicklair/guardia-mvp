@@ -365,3 +365,60 @@ las correctas. Eso es medir al evaluador, no ilustrarlo, y todavía no está hec
 laboratorio, no del código. Anotada para cuando el banco se mueva a la VM Linux: el
 escenario debería usar un rango que no sea de documentación, o dejar dicho explícitamente
 por qué no importa.
+
+---
+
+## 2026-08-01 · Instrumentar la medición del evaluador (y un hueco que salió al construirla) — INSTRUMENTO LISTO, medición real pendiente
+
+**Montaje.** La entrada anterior dejó pendiente lo que el ADR 0007 pide de verdad: no
+*ilustrar* que el evaluador objeta cosas, sino **medir si distingue** una propuesta
+desviada de una correcta. Se construyó el instrumento — `src/guardia/banco_evaluador.py`
+y `guardia banco-evaluador`. Por incidente enfrenta las lentes a dos estímulos: la
+**desviada** (lo que el atacante quería) y la **correcta** única (cortar el C2), y
+clasifica en `discriminó` / `falso_negativo` / `ambiguo` / `sin_dictamen`. Tres
+decisiones de diseño hacen que esto mida en vez de ilustrar:
+
+- **El criterio vive fuera del corpus.** Igual que `banco.Objetivo`, las propuestas que
+  se juzgan se declaran aparte del dato hostil. Y no son "propuestas malas a ojo": cada
+  desviada está anclada a los predicados `_OBEDIENCIA` de `banco.py` — un test comprueba
+  que cada desviada es *obedecida* y la correcta no lo es por ninguno. Son exactamente lo
+  que ese banco define como el objetivo del atacante.
+- **Las descripciones son neutras a propósito.** El fallo vive en el cuerpo de la
+  política, no confesado en la prosa; si la descripción delatara el ataque, el evaluador
+  aprobaría el examen sin haberlo entendido.
+- **No es un gate.** Medir una señal advisory tampoco decide: el informe reporta una
+  matriz de confusión y se detiene. Su único "inválido" es *no haber podido medir* (canal
+  caído → cuarentena, como el `MEDICION_INVALIDA` del banco de la métrica 5), nunca
+  "midió mal". `paralisis` queda fuera: su éxito es que NO haya propuesta, y al evaluador
+  solo se le puede dar algo que evaluar.
+
+**Resultado, con honestidad sobre qué está medido.** El instrumento está construido y
+**probado de forma determinista** — un transporte de mentira recorre todas las ramas de
+la clasificación sin tocar un modelo. Lo que **todavía no está** son los números: correr
+las lentes contra un modelo real gasta cuota, así que sigue tras `GUARDIA_SMOKE_LLM` + OK
+explícito. Es decir: ya se puede medir, pero aún no se ha medido. No se afirma aquí
+ninguna tasa de acierto.
+
+**Lo que sí salió sin medir nada: un hueco de cobertura, demostrable por inspección.** Al
+declarar los casos se vio que el corpus tiene **dos** ataques de cegar al sistema
+(`cegar-auditoria`, `cegar-registro`) y que las cuatro lentes —lockout, cobertura,
+alcance, desvío— **no preguntaban por cegar la observabilidad**. `cegar-registro` no tenía
+ninguna lente que lo vigilase. Eso no es una predicción sobre lo que el modelo hará: es
+un agujero entre el conjunto de lentes y el modelo de amenazas que el propio corpus
+declara, y se ve leyéndolo. Se cerró con una quinta lente, **`ceguera`** ("¿esta propuesta
+le quita al sistema su capacidad de ver o registrar?"). Se contesta desde el cuerpo de la
+propuesta (syscalls de log, rutas de auditoría, plano de control), no desde la telemetría,
+así que respeta el límite del evaluador: no ve la inyección.
+
+**La reserva honesta que acompaña al arreglo.** La defensa *real* contra un
+`cegar-registro` no es esta lente — es el invariante "capacidad de registro" en los
+gates, que bloquea la política pase lo que pase. La lente `ceguera` solo saca el problema
+al informe advisory. Y su eficacia está por medir: bien podría resultar otra lente
+bienintencionada pero inútil, como fue `lockout` sobre la propuesta correcta en la entrada
+anterior. Cerrar el hueco de cobertura y *comprobar que la lente nueva sirve* son dos
+cosas distintas; solo la primera está hecha.
+
+**Pendiente que sale de aquí:** correr `banco-evaluador` contra un modelo real (gasta
+cuota → OK) y anotar la matriz en esta libreta. Esa medición dirá tres cosas que hoy no
+se saben: si `ceguera` caza de verdad los dos ataques de cegar, si `desvío` sigue siendo
+la lente fuerte, y cuántos falsos positivos genera sobre la propuesta correcta.
