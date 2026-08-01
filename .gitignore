@@ -9,3 +9,4 @@ __pycache__/
 docs/grafo-*.html
 pytest-of-*/
 /tmp*/
+docs/mapa.html
