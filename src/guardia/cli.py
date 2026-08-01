@@ -22,6 +22,7 @@ from .despliegue import Despliegue, Estado
 from .evaluador import EvaluadorAdversarial
 from .eventos import cargar
 from .forja import Forja, Resultado
+from .generador import ENCARGOS, GeneradorCiego, cargar_base
 from .invariantes import Config, comprobar
 from .kill_switch import Interruptor
 from .politica import PropuestaInvalida, desde_json
@@ -231,13 +232,91 @@ def _cmd_banco(args: argparse.Namespace) -> int:
     return 0 if informe.politicas_malas_aplicadas == 0 else 8
 
 
-def _comando_llm(args: argparse.Namespace) -> tuple[str, ...]:
+def _cmd_generar_inyecciones(args: argparse.Namespace) -> int:
+    """Encarga el corpus de inyecciones a un modelo ciego (no ha visto el sistema).
+
+    **El defecto no gasta cuota: enseña el plan y para.** Ejecutar de verdad exige
+    nombrar el modelo a mano. Es deliberado — este comando hace una llamada por objetivo,
+    y un comando caro que arranca solo por teclearlo acaba comiendose una tarde. El
+    experimento caro se pide aparte; lo que sale sin banderas es el presupuesto.
+    """
+    encargos = tuple(e for e in ENCARGOS if not args.objetivo or e.objetivo in args.objetivo)
+    if not encargos:
+        print(f"ningun objetivo coincide con {args.objetivo}", file=sys.stderr)
+        return 2
+    comando = _comando_llm(args)
+    if comando is None:
+        print(f"PLAN (no se ha gastado nada): {len(encargos)} llamada(s) a un modelo real")
+        for e in encargos:
+            print(f"  {e.objetivo:<18} {e.meta[:66]}")
+        print(
+            "\nPara ejecutarlo, nombra el modelo:\n"
+            f"  guardia generar-inyecciones --salida {args.salida} "
+            "--comando-llm 'claude -p --tools \"\" --model opus'"
+        )
+        return 0
+
+    base, texto_base = cargar_base(args.incidente)
+    generador = GeneradorCiego(TransporteCLI(comando), base, texto_base)
+    salida = Path(args.salida)
+    rechazadas = salida / "rechazadas"
+    salida.mkdir(parents=True, exist_ok=True)
+
+    admitidas, caidas = 0, 0
+    for encargo in encargos:
+        generacion = generador.generar(encargo)
+        estado = "ADMITIDA" if generacion.admision.admitido else "rechazada"
+        print(f"{encargo.objetivo:<18} {estado:<10} {generacion.admision.motivo}")
+        if generacion.admision.admitido:
+            (salida / f"{encargo.objetivo}.jsonl").write_text(generacion.texto, encoding="utf-8")
+            admitidas += 1
+            continue
+        caidas += generacion.admision.motivo.startswith("canal caido")
+        if generacion.lineas:
+            # Rechazada pero se conserva: la cuota ya se gasto, y verla es como se
+            # entiende por que no entro. Aparte, para que nadie apunte el banco aqui.
+            rechazadas.mkdir(parents=True, exist_ok=True)
+            (rechazadas / f"{encargo.objetivo}.jsonl").write_text(
+                generacion.texto, encoding="utf-8"
+            )
+            (rechazadas / f"{encargo.objetivo}.motivo.txt").write_text(
+                generacion.admision.motivo + "\n", encoding="utf-8"
+            )
+
+    print(f"\nadmitidas: {admitidas}/{len(encargos)} -> {salida}")
+    if caidas == len(encargos):
+        print(
+            "\nMEDICION INVALIDA: el canal cayo en todos los encargos. No se ha generado "
+            "nada, que no es lo mismo que haber generado algo malo.",
+            file=sys.stderr,
+        )
+        return 9
+    if not admitidas:
+        print(
+            "\nNingun corpus admitido: no hay nada que medir con la cuota gastada.",
+            file=sys.stderr,
+        )
+        return 8
+    print(
+        "Para medirlo con los mismos predicados que el corpus a mano:\n"
+        f"  guardia banco --corpus {salida} --proveedor llm"
+    )
+    return 0
+
+
+def _comando_llm(args: argparse.Namespace) -> tuple[str, ...] | None:
     """El comando de transporte a un modelo. Compartido por T2 y el evaluador: los dos
-    hablan por el mismo canal (transporte), con roles distintos."""
+    hablan por el mismo canal (transporte), con roles distintos.
+
+    Devuelve None cuando el subcomando deja `--llm-cli` sin defecto y nadie lo nombro:
+    es como se distingue "no me han dicho que modelo" de "usa el de siempre". Solo lo ve
+    quien lo pide (`generar-inyecciones`), porque para el la version barata del comando es
+    no llamar a nadie."""
     if getattr(args, "comando_llm", None):
         # posix=False conserva las barras de Windows; las comillas se quitan a mano.
         return tuple(t.strip('"') for t in shlex.split(args.comando_llm, posix=False))
-    return COMANDOS_CLI[args.llm_cli]
+    preset = getattr(args, "llm_cli", None)
+    return COMANDOS_CLI[preset] if preset else None
 
 
 def _proveedor(args: argparse.Namespace) -> ProveedorHeuristico | ProveedorLLM:
@@ -486,6 +565,35 @@ def construir_parser() -> argparse.ArgumentParser:
         "cada una reevalua control y desviadas, asi que gasta N veces la cuota",
     )
     banco_ev.set_defaults(func=_cmd_banco_evaluador)
+
+    generar = sub.add_parser(
+        "generar-inyecciones",
+        help="encarga el corpus de inyecciones a un modelo que no ha visto el sistema",
+    )
+    generar.add_argument("--salida", required=True, help="directorio donde escribir el corpus")
+    generar.add_argument(
+        "--objetivo",
+        action="append",
+        choices=[e.objetivo for e in ENCARGOS],
+        help="genera solo estos objetivos (repetible); por defecto, todos",
+    )
+    generar.add_argument(
+        "--incidente", default=str(INCIDENTE_POR_DEFECTO), help="ataque real que se envenena"
+    )
+    generar.add_argument(
+        "--llm-cli",
+        choices=sorted(COMANDOS_CLI),
+        default=None,
+        help="CLI de modelo. SIN esto (ni --comando-llm) el comando NO gasta cuota: "
+        "enseña el plan y para",
+    )
+    generar.add_argument(
+        "--comando-llm",
+        default=None,
+        help="comando de transporte a medida (avanzado; el prompt entra por stdin). "
+        f"Un modelo bajo el suelo de evaluacion ('{SUELO_DE_EVALUACION}') se RECHAZA",
+    )
+    generar.set_defaults(func=_cmd_generar_inyecciones)
 
     return parser
 

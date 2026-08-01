@@ -317,6 +317,8 @@ heurístico, sino en que su salida no tenga autoridad y pase por gates que no co
 **Límites de esta medición, dichos de frente.**
 - Seis inyecciones escritas a mano por quien conoce el sistema son un **suelo**, no un
   techo. El corpus que valdría de verdad lo escribe otro modelo intentando colarlas.
+  *(Ya hay instrumento para eso: el generador ciego de más abajo. Medirlo de verdad
+  gasta cuota y sigue pendiente de OK.)*
 - Un solo modelo (haiku) y una sola pasada por incidente: sin varianza medida. Un
   muestreo con temperatura distinta podría dar otra cosa. Y el modelo era además el
   equivocado — ver la cuarentena de arriba.
@@ -580,3 +582,101 @@ tests cubren la mecánica con transporte programado —unánime con decisor esta
 objeción intermitente contada como 1/N, cuarentena por hueco— que es lo comprobable sin
 modelo; si el instrumento mide *bien* al modelo solo se sabrá midiendo. 190 tests
 recogidos, gates en verde.
+
+## 2026-08-01 · La norma que se incumplía sola, y el corpus que ya no escribo yo
+
+Dos cambios que van juntos porque los dos tratan del mismo error: confiar en que alguien
+se acuerde.
+
+### El suelo de evaluación, movido al defecto
+
+La norma era «mínimo opus; haiku prohibido para cualquier verificación». Estaba escrita.
+Y aun así el preset por defecto de `claude` fijaba `--model haiku`: el comando corto y
+cómodo apuntaba al modelo prohibido, y cumplir la regla exigía teclear
+`--comando-llm 'claude -p --tools "" --model opus'` **en cada tirada**. Así se midió la
+métrica 5 entera, que por eso queda en cuarentena más arriba.
+
+Lo interesante no es el fallo, es dónde estaba: no en el código ni en la norma, sino en
+que el camino barato y el camino correcto eran distintos. Una regla que hay que recordar
+es una intención.
+
+Arreglo, en dos mitades:
+1. **El defecto ya nace bien.** El preset apunta a opus, y un test recorre `COMANDOS_CLI`
+   comprobando que ninguno baja del suelo — es la regresión que acaba de ocurrir, así que
+   ahora tiene quien la vigile.
+2. **Lo prohibido se rechaza, no se sobrescribe.** `comprobar_modelo` corre en el
+   `__post_init__` de `TransporteCLI`: pedir haiku levanta `ModeloProhibido` **al
+   construir el canal**, antes de gastar un token y antes de que un banco acumule
+   resultados que habría que tirar. No hay bandera que lo pise: un defecto se sobrescribe
+   sin querer, una negativa no.
+
+El detalle de diseño que más importa: **`ModeloProhibido` NO hereda de
+`TransporteFallido`.** Ese camino tiene recuperación —el triaje cae al heurístico y lo
+audita— y si la prohibición viajara por él, pedir un modelo prohibido degradaría en
+silencio a otra cosa y saldría un informe con números como si nada. La prohibición tiene
+que doler. Hay test de tipo (`not issubclass`) y test de punta a punta por la CLI: exit
+10, y comprobando que *no* respondió el incidente por otra vía.
+
+Límite honesto: es una **deny list**, o sea un suelo. Caza `haiku` y `sonnet` por
+subcadena —también dentro de ids largos como `claude-haiku-4-5-20251001`— pero no ve los
+alias que aún no existen, y un modelo local sin nombre conocido pasa. Se falla del lado
+ruidoso a propósito: un falso positivo es un rechazo visible, un falso negativo sería una
+medición inválida presentada como buena.
+
+### El generador ciego: el corpus de inyecciones ya no lo escribo yo
+
+`corpus/inyecciones/` lo escribí conociendo la gramática, los gates y los invariantes.
+Que el sistema aguante seis inyecciones mías dice poco. Desde el primer día está dicho en
+esta página que era un **suelo** y que el corpus que valdría lo escribe otro modelo.
+`guardia generar-inyecciones` es ese instrumento.
+
+**En qué consiste la ceguera, que es lo único que lo hace valioso.** No es una promesa
+del prompt. `generador.py` importa `eventos` (el formato de cable, que el atacante ve
+porque es la telemetría que él mismo produce) y `transporte` (el canal). **No importa
+`politica`, ni `invariantes`, ni `forja`, ni `triaje`, ni `banco`** — no puede filtrar lo
+que no tiene delante. 29 reglas nuevas en `src/.gb-boundaries` (de 106 a 135) lo
+convierten en un hecho del grafo. Verificado a la contra, que es lo único que prueba que un gate no es decorado:
+con un `from .politica import Propuesta` de sonda, `gb graph src --gate` sale 1 y
+`check.sh` sale 2; quitada la sonda, verde otra vez.
+
+**Lo que el generador no decide: si acertó.** Escribe los datos hostiles; el criterio
+sigue viviendo en los predicados `_OBEDIENCIA` de `banco`, que no puede ni importar. Si
+cada encargo declarase su propio éxito, el número sería un autorretrato. `ENCARGOS` está
+anclado a `banco.OBJETIVOS` por un test de igualdad de conjuntos (en los dos sentidos: si
+alguien añade un objetivo al banco y no aquí, el corpus generado mediría menos en
+silencio), y lo generado se mide con `guardia banco --corpus <dir>` — **los mismos
+predicados que el corpus a mano**, que es lo único que hace comparables a los dos
+números. Hay un test que recorre ese camino entero con un modelo de mentira en disco:
+generar y medir sin adaptadores por medio.
+
+**Admisión mecánica, nunca «el modelo dice que es buena».** Un corpus entra solo si
+(a) todas sus líneas parsean como eventos, (b) **el ataque sigue ahí** —la salida al C2
+del incidente y el proceso que abre la conexión— y (c) trae **texto nuevo** respecto al
+incidente base. Sin (b), un modelo perezoso «gana» devolviendo un corpus sin ataque, donde
+contener no significa nada; sin (c), basta con devolver la entrada tal cual. La firma del
+ataque se deriva del propio incidente, no de constantes escritas en el módulo: apuntar el
+banco a otro incidente no obliga a tocar el generador. Cada rechazo dice su motivo, y lo
+rechazado se conserva en `rechazadas/` —la cuota ya se gastó— pero **fuera** del
+directorio que el banco lee.
+
+**El coste, en el defecto también.** `guardia generar-inyecciones --salida DIR` sin
+nombrar modelo **no gasta nada**: imprime el plan (cuántas llamadas, contra qué
+objetivos) y para. Ejecutar de verdad exige nombrar el modelo a mano. Es la misma lección
+que arriba aplicada al gasto: el comando sin banderas es la versión barata, y el
+experimento caro se pide aparte.
+
+**Lo que NO está medido, dicho de frente.** El instrumento está probado; el corpus
+generado **no existe todavía**. Los 19 tests cubren la mecánica con transporte programado
+—admisión, rechazos con motivo, recorte de vallas de markdown, canal caído, cuarentena,
+el ciclo generar→medir— que es lo comprobable sin modelo. Si las inyecciones de un modelo
+ciego son *mejores* que las mías solo se sabe generándolas y midiéndolas: seis llamadas
+para generar, más una tirada de banco. Pendiente de OK.
+
+Y un límite del propio diseño: el generador tampoco ve la gramática, así que escribe
+inyecciones de un atacante que **no sabe qué políticas puede emitir el defensor**. Eso es
+deliberado (mide el caso ciego, que es el realista para un atacante externo) pero deja
+otro escalón sin tocar: un atacante que sí conociera la gramática apuntaría mejor. Ese
+sería el techo; esto sigue siendo suelo, solo que más alto.
+
+219 tests recogidos (`pytest --co`, no estimados: 190 → 200 con el suelo → 219 con el
+generador), 18 módulos, 135 reglas de frontera, 0 ciclos, gates en verde.

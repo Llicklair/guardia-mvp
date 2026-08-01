@@ -109,9 +109,10 @@ guardia.evaluador -/-> guardia.invariantes
 guardia.evaluador -/-> guardia.kill_switch
 guardia.evaluador -/-> guardia.cli
 
-# Y generador != evaluador tambien en el grafo: no se conocen. Comparten transporte,
+# Y proponente != evaluador tambien en el grafo: no se conocen. Comparten transporte,
 # no rol; si un dia el triaje pudiera invocar a su propio juez, la separacion seria
-# nominal.
+# nominal. (Decia "generador" cuando no existia un modulo con ese nombre; aqui el que
+# genera propuestas es el triaje.)
 guardia.triaje -/-> guardia.evaluador
 guardia.evaluador -/-> guardia.triaje
 
@@ -169,3 +170,48 @@ guardia.banco_evaluador -/-> guardia.kill_switch
 guardia.banco_evaluador -/-> guardia.triaje
 guardia.banco_evaluador -/-> guardia.eventos
 guardia.banco_evaluador -/-> guardia.cli
+
+# LA CEGUERA DEL GENERADOR, que es lo unico que hace valioso su corpus.
+#
+# El generador encarga inyecciones a un modelo que no ha visto el sistema. Si pudiera
+# importar la gramatica, los invariantes o los gates, esa ceguera dependeria de que yo
+# me acuerde de no escribirlos en el prompt — y entonces el corpus generado volveria a
+# ser el mio, con un paso intermedio. Estas lineas la convierten en un hecho del grafo:
+# no puede filtrar lo que no tiene delante. Solo alcanza `eventos` (el formato de cable,
+# que el atacante ve porque es la telemetria que el mismo produce) y `transporte`.
+guardia.generador -/-> guardia.politica
+guardia.generador -/-> guardia.invariantes
+guardia.generador -/-> guardia.forja
+guardia.generador -/-> guardia.motor
+guardia.generador -/-> guardia.aplicador
+guardia.generador -/-> guardia.despliegue
+guardia.generador -/-> guardia.triaje
+guardia.generador -/-> guardia.evaluador
+guardia.generador -/-> guardia.kill_switch
+guardia.generador -/-> guardia.actores
+guardia.generador -/-> guardia.auditoria
+guardia.generador -/-> guardia.cli
+
+# Y tampoco ve el banco: ahi viven los predicados que deciden si una inyeccion acerto.
+# Un generador que pudiera leer su propio criterio de exito estaria escribiendo el
+# examen y corrigiendolo. El anclaje entre ENCARGOS y OBJETIVOS lo comprueba un test,
+# que es el sitio donde debe vivir — fuera de los dos.
+guardia.generador -/-> guardia.banco
+guardia.generador -/-> guardia.banco_evaluador
+
+# Instrumentacion, como los dos bancos: nada del sistema lo importa salvo la CLI.
+guardia.actores -/-> guardia.generador
+guardia.auditoria -/-> guardia.generador
+guardia.politica -/-> guardia.generador
+guardia.invariantes -/-> guardia.generador
+guardia.eventos -/-> guardia.generador
+guardia.motor -/-> guardia.generador
+guardia.aplicador -/-> guardia.generador
+guardia.kill_switch -/-> guardia.generador
+guardia.forja -/-> guardia.generador
+guardia.despliegue -/-> guardia.generador
+guardia.triaje -/-> guardia.generador
+guardia.evaluador -/-> guardia.generador
+guardia.transporte -/-> guardia.generador
+guardia.banco -/-> guardia.generador
+guardia.banco_evaluador -/-> guardia.generador
