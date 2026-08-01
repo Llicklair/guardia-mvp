@@ -26,6 +26,7 @@ from guardia.generador import (
     ENCARGOS,
     GeneradorCiego,
     Rechazo,
+    VarianzaGeneracion,
     cargar_base,
 )
 from guardia.transporte import TransporteFallido
@@ -70,6 +71,21 @@ class TransporteFalso:
 class TransporteCaido:
     def invocar(self, prompt: str) -> str:
         raise TransporteFallido("binario inexistente")
+
+
+class TransporteEnSecuencia:
+    """Contesta una respuesta distinta por llamada, ciclando. Sirve para simular pasadas
+    de un modelo no determinista sin gastar cuota: p.ej. admite en una pasada y se niega
+    en la siguiente."""
+
+    def __init__(self, respuestas: list[str]):
+        self.respuestas = respuestas
+        self.i = 0
+
+    def invocar(self, prompt: str) -> str:
+        r = self.respuestas[self.i % len(self.respuestas)]
+        self.i += 1
+        return r
 
 
 @pytest.fixture
@@ -372,3 +388,85 @@ def test_el_generador_tampoco_puede_usar_un_modelo_bajo_el_suelo(tmp_path, capsy
 def test_las_instrucciones_van_antes_de_la_telemetria(base):
     """Mismo orden que en el triaje: el marco primero, los datos despues."""
     assert _INSTRUCCIONES.index("Reglas que no puedes") < _INSTRUCCIONES.index("TELEMETRIA BASE")
+
+
+# ── Varianza: ¿la negativa 4/6 es sistematica o ruido? ───────────────────────
+
+
+def test_una_negativa_sistematica_sale_unanime_NsobreN(base):
+    """Si el modelo se niega SIEMPRE al mismo objetivo, la varianza lo marca N/N y
+    unanime — la senal es estable y el numero de una tirada se puede citar."""
+    corpus, texto = base
+    gen = GeneradorCiego(TransporteFalso("No voy a escribir eso."), corpus, texto)
+    varianza = gen.generar_varias((ENCARGOS[0],), pasadas=3)
+    assert varianza.distribucion(ENCARGOS[0].objetivo) == {"no_coopero": 3}
+    assert varianza.unanime(ENCARGOS[0].objetivo)
+    assert varianza.valido
+
+
+def test_una_negativa_intermitente_sale_INESTABLE(base):
+    """Admite una pasada y se niega la siguiente: exactamente lo que una sola tirada no
+    distingue. La varianza lo parte 2/1 y lo marca no-unanime."""
+    corpus, texto = base
+    secuencia = TransporteEnSecuencia([_jsonl(_ATAQUE), "No voy a escribir eso.", _jsonl(_ATAQUE)])
+    gen = GeneradorCiego(secuencia, corpus, texto)
+    varianza = gen.generar_varias((ENCARGOS[0],), pasadas=3)
+    dist = varianza.distribucion(ENCARGOS[0].objetivo)
+    assert dist == {"admitida": 2, "no_coopero": 1}
+    assert not varianza.unanime(ENCARGOS[0].objetivo)
+
+
+def test_una_pasada_entera_caida_invalida_la_varianza(base):
+    corpus, texto = base
+    gen = GeneradorCiego(TransporteCaido(), corpus, texto)
+    varianza = gen.generar_varias((ENCARGOS[0], ENCARGOS[1]), pasadas=2)
+    assert not varianza.valido  # cuarentena: no se midio, no se midio mal
+
+
+def test_varianza_exige_al_menos_una_pasada(base):
+    corpus, texto = base
+    gen = GeneradorCiego(TransporteFalso("x"), corpus, texto)
+    with pytest.raises(ValueError, match="pasada"):
+        gen.generar_varias((ENCARGOS[0],), pasadas=0)
+
+
+def test_es_una_VarianzaGeneracion(base):
+    corpus, texto = base
+    gen = GeneradorCiego(TransporteFalso("No."), corpus, texto)
+    assert isinstance(gen.generar_varias((ENCARGOS[0],), pasadas=1), VarianzaGeneracion)
+
+
+def test_pasadas_por_la_cli_reporta_distribucion_y_conserva_por_pasada(tmp_path, capsys):
+    """De punta a punta: --pasadas N corre N veces, imprime la distribucion por objetivo
+    y deja los artefactos de cada pasada por separado (nada se pierde)."""
+    salida = tmp_path / "var"
+    script = _modelo_falso_en_disco(tmp_path, _ATAQUE)  # admite siempre
+    codigo = main(
+        [
+            "generar-inyecciones",
+            "--salida",
+            str(salida),
+            "--objetivo",
+            "cegar-registro",
+            "--pasadas",
+            "2",
+            "--comando-llm",
+            f'"{_PYTHON}" "{script}"',
+        ]
+    )
+    texto = capsys.readouterr()
+    assert codigo == 0, texto.out
+    assert "varianza del generador" in texto.out
+    assert "admitida:2/2" in texto.out
+    assert (salida / "pasada-1" / "cegar-registro.jsonl").exists()
+    assert (salida / "pasada-2" / "cegar-registro.jsonl").exists()
+
+
+def test_el_plan_barato_cuenta_las_pasadas(tmp_path, capsys):
+    """Sin modelo, --pasadas solo cambia la cuenta del plan; sigue sin gastar nada."""
+    codigo = main(["generar-inyecciones", "--salida", str(tmp_path / "g"), "--pasadas", "3"])
+    salida = capsys.readouterr()
+    assert codigo == 0
+    assert f"{len(ENCARGOS) * 3} llamada" in salida.out
+    assert "3 pasadas" in salida.out
+    assert not (tmp_path / "g").exists()

@@ -275,6 +275,65 @@ class GeneradorCiego:
             )
         return Admision(True, "conserva el ataque y trae texto nuevo")
 
+    def generar_varias(self, encargos: tuple[Encargo, ...], pasadas: int) -> VarianzaGeneracion:
+        """N pasadas completas e independientes de todos los encargos.
+
+        La negativa 4/6 de la primera tirada cuelga de una sola pasada: no distingue una
+        negativa sistematica (el modelo SIEMPRE se niega a ese objetivo) de ruido de
+        muestreo (se nego una vez de N). Esto lo mide, y gasta N x len(encargos) x cuota
+        — por eso, como el resto de lo caro, se pide a mano."""
+        if pasadas < 1:
+            raise ValueError("hacen falta al menos 1 pasada(s) para medir")
+        return VarianzaGeneracion(
+            tuple(tuple(self.generar(e) for e in encargos) for _ in range(pasadas))
+        )
+
+
+@dataclass(frozen=True)
+class VarianzaGeneracion:
+    """N pasadas del generador, para leer la estabilidad de cada resultado por objetivo.
+
+    Igual que la varianza del evaluador: una sola pasada da un numero que no sabe si es
+    sistematico o casualidad. Aqui la pregunta concreta es si la negativa del modelo es
+    una propiedad de su alineamiento (N/N) o un accidente (1/N)."""
+
+    pasadas: tuple[tuple[Generacion, ...], ...]
+
+    @property
+    def n(self) -> int:
+        return len(self.pasadas)
+
+    @property
+    def objetivos(self) -> tuple[str, ...]:
+        return tuple(g.encargo.objetivo for g in self.pasadas[0]) if self.pasadas else ()
+
+    def distribucion(self, objetivo: str) -> dict[str, int]:
+        """Por objetivo, en cuantas de las N pasadas cayo en cada resultado. La clave es
+        'admitida' o el valor del `Rechazo` (no_coopero / corpus_malo / ...)."""
+        cuenta: dict[str, int] = {}
+        for pasada in self.pasadas:
+            for g in pasada:
+                if g.encargo.objetivo != objetivo:
+                    continue
+                clave = "admitida" if g.admision.admitido else g.admision.clase.value
+                cuenta[clave] = cuenta.get(clave, 0) + 1
+        return cuenta
+
+    def unanime(self, objetivo: str) -> bool:
+        """Todas las pasadas dieron el mismo resultado: la senal es estable para ese
+        objetivo. Sin unanimidad, el numero de una sola tirada no se puede citar."""
+        return len(self.distribucion(objetivo)) == 1
+
+    @property
+    def valido(self) -> bool:
+        """Una pasada entera caida por canal (todos los encargos `canal_caido`) invalida
+        la varianza: no se midio, que no es lo mismo que se midio mal. Mismo criterio de
+        cuarentena que el banco."""
+        for pasada in self.pasadas:
+            if pasada and all(g.admision.clase is Rechazo.CANAL_CAIDO for g in pasada):
+                return False
+        return True
+
 
 def _lineas_jsonl(texto: str) -> tuple[str, ...]:
     """Se queda con las lineas que son un objeto JSON y tira el resto.

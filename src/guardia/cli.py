@@ -246,7 +246,9 @@ def _cmd_generar_inyecciones(args: argparse.Namespace) -> int:
         return 2
     comando = _comando_llm(args)
     if comando is None:
-        print(f"PLAN (no se ha gastado nada): {len(encargos)} llamada(s) a un modelo real")
+        llamadas = len(encargos) * args.pasadas
+        pasadas = f" x {args.pasadas} pasadas" if args.pasadas > 1 else ""
+        print(f"PLAN (no se ha gastado nada): {llamadas} llamada(s){pasadas} a un modelo real")
         for e in encargos:
             print(f"  {e.objetivo:<18} {e.meta[:66]}")
         print(
@@ -259,6 +261,10 @@ def _cmd_generar_inyecciones(args: argparse.Namespace) -> int:
     base, texto_base = cargar_base(args.incidente)
     generador = GeneradorCiego(TransporteCLI(comando), base, texto_base)
     salida = Path(args.salida)
+
+    if args.pasadas > 1:
+        return _generar_varianza(generador, encargos, salida, args.pasadas)
+
     rechazadas = salida / "rechazadas"
     salida.mkdir(parents=True, exist_ok=True)
 
@@ -267,29 +273,10 @@ def _cmd_generar_inyecciones(args: argparse.Namespace) -> int:
         generacion = generador.generar(encargo)
         estado = "ADMITIDA" if generacion.admision.admitido else "rechazada"
         print(f"{encargo.objetivo:<18} {estado:<10} {generacion.admision.motivo}")
-        if generacion.admision.admitido:
-            (salida / f"{encargo.objetivo}.jsonl").write_text(generacion.texto, encoding="utf-8")
-            admitidas += 1
-            continue
+        _volcar_generacion(generacion, salida)
+        admitidas += generacion.admision.admitido
         caidas += generacion.admision.clase is Rechazo.CANAL_CAIDO
         negativas += generacion.admision.clase is Rechazo.NO_COOPERO
-        if generacion.lineas or generacion.crudo.strip():
-            # Rechazada pero se conserva: la cuota ya se gasto, y verla es como se
-            # entiende por que no entro. Aparte, para que nadie apunte el banco aqui.
-            # Cuando el modelo NO COOPERO no hay lineas, pero su negativa es justo la
-            # evidencia que hay que guardar — de ahi que se escriba el crudo tambien.
-            rechazadas.mkdir(parents=True, exist_ok=True)
-            if generacion.lineas:
-                (rechazadas / f"{encargo.objetivo}.jsonl").write_text(
-                    generacion.texto, encoding="utf-8"
-                )
-            if generacion.crudo.strip():
-                (rechazadas / f"{encargo.objetivo}.crudo.txt").write_text(
-                    generacion.crudo, encoding="utf-8"
-                )
-            (rechazadas / f"{encargo.objetivo}.motivo.txt").write_text(
-                generacion.admision.motivo + "\n", encoding="utf-8"
-            )
 
     print(f"\nadmitidas: {admitidas}/{len(encargos)} -> {salida}")
     if negativas:
@@ -314,6 +301,52 @@ def _cmd_generar_inyecciones(args: argparse.Namespace) -> int:
         "Para medirlo con los mismos predicados que el corpus a mano:\n"
         f"  guardia banco --corpus {salida} --proveedor llm"
     )
+    return 0
+
+
+def _volcar_generacion(generacion, salida: Path) -> None:
+    """Escribe una generacion a disco: el admitido a `salida/<obj>.jsonl`; el rechazado
+    a `salida/rechazadas/` (jsonl si hubo lineas, siempre el crudo si el modelo respondio
+    algo, y el motivo). La negativa se conserva porque es la evidencia mas valiosa."""
+    objetivo = generacion.encargo.objetivo
+    if generacion.admision.admitido:
+        salida.mkdir(parents=True, exist_ok=True)
+        (salida / f"{objetivo}.jsonl").write_text(generacion.texto, encoding="utf-8")
+        return
+    if not (generacion.lineas or generacion.crudo.strip()):
+        return
+    rechazadas = salida / "rechazadas"
+    rechazadas.mkdir(parents=True, exist_ok=True)
+    if generacion.lineas:
+        (rechazadas / f"{objetivo}.jsonl").write_text(generacion.texto, encoding="utf-8")
+    if generacion.crudo.strip():
+        (rechazadas / f"{objetivo}.crudo.txt").write_text(generacion.crudo, encoding="utf-8")
+    (rechazadas / f"{objetivo}.motivo.txt").write_text(
+        generacion.admision.motivo + "\n", encoding="utf-8"
+    )
+
+
+def _generar_varianza(generador, encargos, salida: Path, pasadas: int) -> int:
+    """N pasadas: ¿la negativa 4/6 es sistematica (N/N) o ruido (1/N)? Reporta la
+    distribucion por objetivo y marca INESTABLE lo que no sale unanime. No decide nada —
+    igual que la varianza del evaluador, medir una señal no es fijar un listón."""
+    varianza = generador.generar_varias(encargos, pasadas)
+    for k, pasada in enumerate(varianza.pasadas, 1):
+        for generacion in pasada:
+            _volcar_generacion(generacion, salida / f"pasada-{k}")
+    print(f"varianza del generador — {pasadas} pasadas (artefactos por pasada en {salida}):\n")
+    for objetivo in varianza.objetivos:
+        distribucion = varianza.distribucion(objetivo)
+        detalle = "  ".join(f"{k}:{v}/{pasadas}" for k, v in sorted(distribucion.items()))
+        marca = "" if varianza.unanime(objetivo) else "   <- INESTABLE"
+        print(f"  {objetivo:<18} {detalle}{marca}")
+    if not varianza.valido:
+        print(
+            "\nMEDICION INVALIDA: una pasada entera cayo por canal. La estabilidad no se "
+            "puede afirmar con huecos.",
+            file=sys.stderr,
+        )
+        return 9
     return 0
 
 
@@ -605,6 +638,13 @@ def construir_parser() -> argparse.ArgumentParser:
         default=None,
         help="comando de transporte a medida (avanzado; el prompt entra por stdin). "
         f"Un modelo bajo el suelo de evaluacion ('{SUELO_DE_EVALUACION}') se RECHAZA",
+    )
+    generar.add_argument(
+        "--pasadas",
+        type=int,
+        default=1,
+        help="N pasadas para medir si la negativa del modelo es estable o ruido; "
+        "gasta N x objetivos la cuota, artefactos por pasada",
     )
     generar.set_defaults(func=_cmd_generar_inyecciones)
 
