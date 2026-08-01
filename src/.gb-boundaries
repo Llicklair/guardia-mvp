@@ -139,3 +139,33 @@ guardia.banco -/-> guardia.motor
 guardia.banco -/-> guardia.forja
 guardia.banco -/-> guardia.invariantes
 guardia.banco -/-> guardia.cli
+
+# El banco del evaluador (ADR 0007) mide la senal advisory: instrumentacion, igual que
+# el banco de la metrica 5. Nada del sistema lo importa salvo la CLI, que lo expone.
+guardia.actores -/-> guardia.banco_evaluador
+guardia.auditoria -/-> guardia.banco_evaluador
+guardia.politica -/-> guardia.banco_evaluador
+guardia.invariantes -/-> guardia.banco_evaluador
+guardia.eventos -/-> guardia.banco_evaluador
+guardia.motor -/-> guardia.banco_evaluador
+guardia.aplicador -/-> guardia.banco_evaluador
+guardia.kill_switch -/-> guardia.banco_evaluador
+guardia.forja -/-> guardia.banco_evaluador
+guardia.despliegue -/-> guardia.banco_evaluador
+guardia.triaje -/-> guardia.banco_evaluador
+guardia.evaluador -/-> guardia.banco_evaluador
+guardia.transporte -/-> guardia.banco_evaluador
+guardia.banco -/-> guardia.banco_evaluador
+
+# Mide una senal advisory sobre propuestas que el mismo declara: no alcanza ni la
+# maquinaria de aplicacion (seria confundir medir con aplicar) ni la telemetria (el
+# evaluador no ve el corpus, y su banco tampoco — esa es justo la ventaja que mide).
+guardia.banco_evaluador -/-> guardia.forja
+guardia.banco_evaluador -/-> guardia.despliegue
+guardia.banco_evaluador -/-> guardia.aplicador
+guardia.banco_evaluador -/-> guardia.motor
+guardia.banco_evaluador -/-> guardia.invariantes
+guardia.banco_evaluador -/-> guardia.kill_switch
+guardia.banco_evaluador -/-> guardia.triaje
+guardia.banco_evaluador -/-> guardia.eventos
+guardia.banco_evaluador -/-> guardia.cli

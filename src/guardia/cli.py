@@ -17,6 +17,7 @@ from pathlib import Path
 from .actores import Actor, SinAutoridad
 from .aplicador import Aplicador
 from .banco import Banco
+from .banco_evaluador import BancoEvaluador
 from .despliegue import Despliegue, Estado
 from .evaluador import EvaluadorAdversarial
 from .eventos import cargar
@@ -224,31 +225,69 @@ def _cmd_banco(args: argparse.Namespace) -> int:
     return 0 if informe.politicas_malas_aplicadas == 0 else 8
 
 
+def _comando_llm(args: argparse.Namespace) -> tuple[str, ...]:
+    """El comando de transporte a un modelo. Compartido por T2 y el evaluador: los dos
+    hablan por el mismo canal (transporte), con roles distintos."""
+    if getattr(args, "comando_llm", None):
+        # posix=False conserva las barras de Windows; las comillas se quitan a mano.
+        return tuple(t.strip('"') for t in shlex.split(args.comando_llm, posix=False))
+    return COMANDOS_CLI[args.llm_cli]
+
+
 def _proveedor(args: argparse.Namespace) -> ProveedorHeuristico | ProveedorLLM:
     if args.proveedor == "heuristico":
         return ProveedorHeuristico()
-    if args.comando_llm:
-        # posix=False conserva las barras de Windows; las comillas se quitan a mano.
-        comando = tuple(t.strip('"') for t in shlex.split(args.comando_llm, posix=False))
-    else:
-        comando = COMANDOS_CLI[args.llm_cli]
-    return ProveedorLLM(TransporteCLI(comando))
+    return ProveedorLLM(TransporteCLI(_comando_llm(args)))
 
 
 def _mostrar_dictamen(args: argparse.Namespace, propuesta, interruptor) -> None:
     """El evaluador adversarial (regla 10, ADR 0007). ADVISORY: se imprime y se audita,
     pero no toca el veredicto ni el codigo de salida. Si el canal cae, se dice y se
     sigue — un evaluador caido no puede parar una contencion."""
-    comando = COMANDOS_CLI[args.llm_cli]
-    dictamen = EvaluadorAdversarial(TransporteCLI(comando), interruptor.auditoria).evaluar(
-        propuesta
-    )
+    dictamen = EvaluadorAdversarial(
+        TransporteCLI(_comando_llm(args)), interruptor.auditoria
+    ).evaluar(propuesta)
+    if dictamen.sin_dictamen:
+        print("evaluador adversarial: sin dictamen (canal caido, advisory)")
+        return
     if dictamen.limpio:
         print("evaluador adversarial: sin objeciones (advisory)")
         return
     print("evaluador adversarial (ADVISORY, no bloquea):")
     for objecion in dictamen.con_objecion:
         print(f"  ! [{objecion.lente}] {objecion.motivo}")
+
+
+def _cmd_banco_evaluador(args: argparse.Namespace) -> int:
+    """Mide si el evaluador adversarial DISTINGUE una propuesta desviada de la correcta
+    (ADR 0007). Invoca un modelo real y gasta cuota: es opt-in, como `banco --proveedor
+    llm`. No es un gate — reporta una matriz de confusion sobre una senal advisory. Exit
+    0 si la medicion se completo; 9 solo si el canal cayo y no se pudo medir."""
+    interruptor = _interruptor(args)
+    evaluador = EvaluadorAdversarial(TransporteCLI(_comando_llm(args)), interruptor.auditoria)
+    informe = BancoEvaluador(evaluador).correr()
+    for r in informe.resultados:
+        lentes = ",".join(r.lentes_en_desviada) or "-"
+        marca = " (lente esperada OK)" if r.lente_acerto else ""
+        print(f"{r.incidente:<18} {r.discriminacion.value:<16} desviada:[{lentes}]{marca}")
+    total = len(informe.resultados)
+    if not informe.valido:
+        print(
+            f"\nMEDICION INVALIDA: {informe.sin_medir}/{total} caso(s) sin dictamen (canal "
+            "caido). El evaluador no llego a opinar; no se puede afirmar nada.",
+            file=sys.stderr,
+        )
+        return 9
+    print(
+        f"\ndiscrimino: {informe.discriminados}/{total} · "
+        f"falsos negativos: {informe.falsos_negativos} · ambiguos: {informe.ambiguos} · "
+        f"lente correcta: {informe.aciertos_de_lente}/{informe.discriminados}"
+    )
+    print(
+        "ADVISORY: esto mide una senal que no bloquea. Que discrimine poco NO es un "
+        "fallo del sistema — la defensa son los cuatro gates, no esta senal."
+    )
+    return 0
 
 
 def _cmd_responder(args: argparse.Namespace) -> int:
@@ -372,6 +411,23 @@ def construir_parser() -> argparse.ArgumentParser:
     )
     _flags_de_proveedor(banco)
     banco.set_defaults(func=_cmd_banco)
+
+    banco_ev = sub.add_parser(
+        "banco-evaluador",
+        help="mide si el evaluador distingue propuesta desviada de correcta (ADR 0007)",
+    )
+    banco_ev.add_argument(
+        "--llm-cli",
+        choices=sorted(COMANDOS_CLI),
+        default="claude",
+        help="CLI de modelo para el evaluador (invoca un modelo real y gasta cuota; opt-in)",
+    )
+    banco_ev.add_argument(
+        "--comando-llm",
+        default=None,
+        help="comando de transporte a medida (avanzado; el prompt entra por stdin)",
+    )
+    banco_ev.set_defaults(func=_cmd_banco_evaluador)
 
     return parser
 

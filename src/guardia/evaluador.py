@@ -91,6 +91,13 @@ class Objecion:
     hay_objecion: bool
     motivo: str
 
+    @property
+    def sin_dictamen(self) -> bool:
+        """El canal cayo para esta lente: no es un 'no hay objecion', es un 'no se pudo
+        preguntar'. Distinguirlos importa — leer un test que no corrio como si hubiera
+        pasado es el mismo error."""
+        return self.motivo.startswith("(sin dictamen")
+
 
 @dataclass(frozen=True)
 class Dictamen:
@@ -106,6 +113,13 @@ class Dictamen:
     @property
     def limpio(self) -> bool:
         return not self.con_objecion
+
+    @property
+    def sin_dictamen(self) -> bool:
+        """Todas las lentes cayeron por transporte: el evaluador no llego a opinar. Un
+        dictamen asi NO es 'limpio' — no hay medicion, y confundir 'no medido' con
+        'sin objeciones' es la misma trampa que el MEDICION_INVALIDA del banco."""
+        return bool(self.objeciones) and all(o.sin_dictamen for o in self.objeciones)
 
 
 @dataclass(frozen=True)
