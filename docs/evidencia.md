@@ -497,3 +497,36 @@ Y queda un residual medido pero no cerrado: parsear un anidado profundo-pero-baj
 límite todavía gasta CPU (recurre y desenrolla) aunque ya no cuelgue; un pre-chequeo de
 profundidad sería más estricto, pero el catch ya cumple lo que la regla 3 exige —
 descartar sin reventar.
+
+## El residual, cerrado — y la propiedad de frontera, ahora vigilada
+
+El párrafo de arriba dejaba dos deudas escritas. La primera: el catch de `RecursionError`
+descarta, pero **después** de dejar que `json.loads` queme pila; y un anidado
+profundo-pero-bajo-el-límite (500 niveles) ni siquiera peta — se parsea entero, CPU
+gratis para el atacante, y muere después en `desde_dict` por no ser objeto. El cierre es
+el pre-chequeo que el propio párrafo pedía: `_demasiado_anidado`, un escaneo lineal O(n)
+con salida temprana que cuenta profundidad **estructural** antes de parsear. La palabra
+estructural es la parte que cuesta: los corchetes dentro de un string JSON no son
+estructura, y sin distinguirlos (mini-tokenizador de tres flags: en_cadena, escapado,
+profundidad) una descripción llena de corchetes sería un falso positivo — el guardia
+rechazaría propuestas legítimas, que es fallar hacia el lado contrario. Hay test de las
+dos caras: 500 niveles se descartan sin parsear, y una descripción con `[[[`, llaves y
+comillas escapadas pasa. El límite es 32: una propuesta real anida 3. El catch de
+`RecursionError` se queda como segunda línea — si el escáner juzgara mal una entrada, la
+propiedad se mantiene.
+
+La segunda deuda: "batería a mano, no un fuzzer de verdad". La propiedad que el fuzzing
+dejó enunciada — **toda entrada produce `Propuesta` válida o `PropuestaInvalida`, nunca
+otra excepción** — estaba comprobada sobre 26 casos elegidos a mano, no vigilada. Ahora
+hay un test de propiedad con generador propio: semilla fija (determinista, reproducible,
+sin dependencias nuevas), 2000 entradas por pasada en tres familias — mutaciones del
+JSON válido (borrar/sustituir/insertar), ruido puro sobre un alfabeto hostil (nulos,
+RTL, escapes), y anidados asimétricos de hasta 3000 niveles con corchetes sin cerrar.
+Cualquier excepción que no sea `PropuestaInvalida` es fallo del test, con la entrada
+impresa para reproducir.
+
+**La nota honesta sigue siendo suelo, no techo:** es fuzzing mutacional a ciegas con
+semilla fija — no está guiado por cobertura, y 2000 casos deterministas son los mismos
+2000 en cada CI: vigilan regresiones de la propiedad, no exploran espacio nuevo. Un
+fuzzer real (coverage-guided, corpus creciente) sigue en la lista si la frontera crece.
+186 tests recogidos (medido con `pytest --co`, no de memoria), gates en verde.
