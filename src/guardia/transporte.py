@@ -10,6 +10,10 @@ Las dos condiciones no negociables del canal:
    atacante; por argv acabaria en logs de procesos y en limites de linea de comandos.
 2. **La CLI corre sin herramientas.** Un modelo con herramientas seria ejecucion de
    codigo a un prompt inyectado de distancia. Hay un test que vigila los presets.
+3. **El modelo esta por encima del suelo de evaluacion.** Todo lo que sale por este
+   canal acaba en una medicion (T2 propone, el evaluador refuta, los bancos cuentan),
+   y una medicion hecha con un modelo por debajo del suelo no se puede citar. Se
+   comprueba al CONSTRUIR el transporte, antes de gastar un token.
 """
 
 from __future__ import annotations
@@ -35,8 +39,54 @@ class Transporte(Protocol):
     def invocar(self, prompt: str) -> str: ...
 
 
+class ModeloProhibido(ValueError):
+    """El comando pide un modelo por debajo del suelo de evaluacion.
+
+    **No hereda de `TransporteFallido` a proposito.** Un canal caido tiene camino de
+    recuperacion: el triaje cae al heuristico y lo deja auditado. Si la prohibicion
+    viajara por ese camino, pedir un modelo prohibido degradaria en silencio a otra
+    cosa y saldria un informe con numeros — la prohibicion no existiria. Un defecto se
+    pisa sin querer; una negativa no."""
+
+
+SUELO_DE_EVALUACION = "opus"
+"""El modelo mas debil que se admite. Todo lo que cruza este canal acaba en una
+medicion, y una medicion por debajo del suelo no se cita como evidencia."""
+
+# Deny list, y por tanto un SUELO y no un techo: caza los nombres conocidos, no los
+# alias que aun no existen. Se compara por subcadena para pillar tambien los ids largos
+# ("claude-haiku-4-5-20251001"). Un falso positivo aqui es un rechazo ruidoso; un falso
+# negativo seria una medicion invalida presentada como buena. Se falla del lado ruidoso.
+MODELOS_BAJO_EL_SUELO: dict[str, str] = {
+    "haiku": "prohibido explicitamente para cualquier verificacion o evaluacion",
+    "sonnet": f"por debajo del suelo (minimo {SUELO_DE_EVALUACION})",
+}
+
+
+def comprobar_modelo(comando: tuple[str, ...]) -> None:
+    """Rechaza un comando que pida un modelo bajo el suelo. Sin bandera que lo pise.
+
+    Que esto sea una excepcion y no un defecto distinto es la regla entera: si cumplirla
+    exigiera teclear `--comando-llm ... --model opus`, dependeria de que alguien se
+    acuerde. Aqui lo correcto es lo que sale sin escribir nada, y lo prohibido no se
+    sobrescribe."""
+    for token in comando:
+        minuscula = token.lower()
+        for nombre, motivo in MODELOS_BAJO_EL_SUELO.items():
+            if nombre in minuscula:
+                raise ModeloProhibido(
+                    f"el comando pide '{nombre}' ({token!r}): {motivo}. "
+                    f"El suelo de evaluacion es '{SUELO_DE_EVALUACION}'; lo medido por "
+                    f"debajo no se cita como evidencia. Cambia el modelo del comando."
+                )
+
+
 # Presets de solo-inferencia. Sin --bare en claude a proposito: ese modo solo autentica
 # por ANTHROPIC_API_KEY y rompe la sesion OAuth de la suscripcion (medido, no supuesto).
+#
+# El preset de claude fijaba haiku, que esta prohibido: el camino barato era el invalido
+# y cumplir la norma exigia acordarse de una bandera. Ahora el preset ya nace sobre el
+# suelo y hay un test que lo vigila.
 #
 # La garantia de gemini es MAS DEBIL que la de claude: plan es "solo lectura", no "sin
 # herramientas" (y --skip-trust hace falta porque sin trust el modo plan se degrada a
@@ -44,7 +94,7 @@ class Transporte(Protocol):
 # disponible y medido, NO como el evaluador adversarial: ese rol dejo de exigir una
 # familia distinta en el ADR 0007.
 COMANDOS_CLI: dict[str, tuple[str, ...]] = {
-    "claude": ("claude", "-p", "--tools", "", "--model", "haiku"),
+    "claude": ("claude", "-p", "--tools", "", "--model", "opus"),
     "gemini": ("gemini", "--skip-trust", "--approval-mode", "plan", "-p", ""),
 }
 
@@ -58,6 +108,11 @@ class TransporteCLI:
 
     comando: tuple[str, ...]
     timeout_s: float = 240.0
+
+    def __post_init__(self) -> None:
+        # Al construir, no al invocar: el rechazo llega antes de gastar un token, y
+        # antes de que un banco haya empezado a acumular resultados que habria que tirar.
+        comprobar_modelo(self.comando)
 
     def invocar(self, prompt: str) -> str:
         ejecutable = shutil.which(self.comando[0])

@@ -216,8 +216,11 @@ heurístico salvo `--proveedor llm`. 138 tests deterministas (modelo simulado) +
 real detrás de `GUARDIA_SMOKE_LLM` para que la suite jamás gaste cuota por accidente.
 
 **Resultado — el ciclo real, medido dos veces.**
-1. **Smoke T2 con Claude (haiku)**: contra el repro del incidente propone un
-   `filtro_red` que pasa la gramática. 15s. Con **Gemini**: también propone válido, 99s.
+1. **Smoke T2 con Claude (haiku, hoy bajo el suelo de evaluación)**: contra el repro del
+   incidente propone un `filtro_red` que pasa la gramática. 15s. Con **Gemini**: también
+   propone válido, 99s. Como smoke de *canal* sigue valiendo —lo que demuestra es que el
+   transporte habla y la respuesta encaja en la gramática, no cómo de bueno es el
+   modelo—, pero el número de segundos es de otro modelo del que hoy se usa.
    Dos familias distintas de modelo detrás de la misma interfaz — la base del evaluador
    adversarial de la regla 10 ya existe.
 2. **Ciclo completo `responder --proveedor llm`**: Claude propone
@@ -256,6 +259,16 @@ control, cegar las syscalls del log, paralizar el triaje y desviarlo a una víct
 inocente. Cada una lleva **también la carga real del ataque**, para poder distinguir
 "resistió y contuvo" de "no hizo nada". El banco (`guardia banco --proveedor llm`)
 corre el ciclo entero por cada una y clasifica.
+
+> **EN CUARENTENA — medido con haiku, que está por debajo del suelo de evaluación.**
+> Estos números se tomaron cuando el preset por defecto fijaba `--model haiku`. La norma
+> es mínimo opus, así que **no se citan como evidencia** y la tabla queda como registro
+> de lo que se hizo, no como resultado. Hay que volver a medirlo sobre el suelo (gasta
+> cuota: pide OK). Lo que **sí sobrevive** es lo que no depende de qué modelo respondió:
+> el fallo del instrumento encontrado midiendo, el desvío del baseline heurístico (que no
+> usa modelo ninguno) y la tesis de que el veredicto lo dictan los gates. Que el camino
+> barato fuera el inválido era el fallo de fondo: arreglado en el transporte, un modelo
+> bajo el suelo ahora se RECHAZA al construir el canal, antes de gastar un token.
 
 **Resultado con Claude (haiku), T3 aislado por incidente:**
 
@@ -305,7 +318,15 @@ heurístico, sino en que su salida no tenga autoridad y pase por gates que no co
 - Seis inyecciones escritas a mano por quien conoce el sistema son un **suelo**, no un
   techo. El corpus que valdría de verdad lo escribe otro modelo intentando colarlas.
 - Un solo modelo (haiku) y una sola pasada por incidente: sin varianza medida. Un
-  muestreo con temperatura distinta podría dar otra cosa.
+  muestreo con temperatura distinta podría dar otra cosa. Y el modelo era además el
+  equivocado — ver la cuarentena de arriba.
+- **La norma existía y aun así se incumplió sola**, que es el hallazgo de proceso: el
+  suelo de evaluación estaba escrito, pero cumplirlo exigía teclear una bandera larga en
+  cada tirada, mientras el comando corto y cómodo apuntaba a un modelo prohibido. Una
+  regla que hay que recordar no es una regla, es una intención. La cura no fue prometer
+  acordarse: fue mover la norma al defecto (el preset ya nace sobre el suelo) y convertir
+  la excepción en una **negativa con motivo** que ninguna bandera pisa — un defecto se
+  sobrescribe sin querer, una negativa no. `tests/test_transporte.py` lo vigila.
 - El banco de replay de T3 (benigno + repro) **no lo controla el atacante**, y de ahí
   viene buena parte de la fuerza del resultado. En un despliegue donde el corpus benigno
   se grabara con el atacante ya dentro, esta garantía se debilita — es la decisión

@@ -25,7 +25,13 @@ from .forja import Forja, Resultado
 from .invariantes import Config, comprobar
 from .kill_switch import Interruptor
 from .politica import PropuestaInvalida, desde_json
-from .transporte import COMANDOS_CLI, TransporteCLI, TransporteFallido
+from .transporte import (
+    COMANDOS_CLI,
+    SUELO_DE_EVALUACION,
+    ModeloProhibido,
+    TransporteCLI,
+    TransporteFallido,
+)
 from .triaje import ProveedorHeuristico, ProveedorLLM, Triaje
 
 RAIZ = Path(__file__).resolve().parent.parent.parent
@@ -469,7 +475,8 @@ def construir_parser() -> argparse.ArgumentParser:
     banco_ev.add_argument(
         "--comando-llm",
         default=None,
-        help="comando de transporte a medida (avanzado; el prompt entra por stdin)",
+        help="comando de transporte a medida (avanzado; el prompt entra por stdin). "
+        f"Un modelo bajo el suelo de evaluacion ('{SUELO_DE_EVALUACION}') se RECHAZA",
     )
     banco_ev.add_argument(
         "--pasadas",
@@ -501,7 +508,8 @@ def _flags_de_proveedor(sub: argparse.ArgumentParser) -> None:
     sub.add_argument(
         "--comando-llm",
         default=None,
-        help="comando de transporte a medida (avanzado; el prompt entra por stdin)",
+        help="comando de transporte a medida (avanzado; el prompt entra por stdin). "
+        f"Un modelo bajo el suelo de evaluacion ('{SUELO_DE_EVALUACION}') se RECHAZA",
     )
     sub.add_argument(
         "--evaluar",
@@ -512,7 +520,14 @@ def _flags_de_proveedor(sub: argparse.ArgumentParser) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     args = construir_parser().parse_args(argv)
-    return int(args.func(args))
+    try:
+        return int(args.func(args))
+    except ModeloProhibido as e:
+        # Se presenta como un rechazo con su motivo, no como un traceback ni como un
+        # apano silencioso. Codigo propio: quien automatice esto distingue "no se pudo
+        # medir por politica" de "se midio y salio mal".
+        print(f"RECHAZADO (modelo bajo el suelo de evaluacion): {e}")
+        return 10
 
 
 if __name__ == "__main__":
