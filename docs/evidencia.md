@@ -459,3 +459,41 @@ hay que subir el listón de objeción (que `cobertura` no salte sobre un bloqueo
 razonable) y volver a medir — pero antes conviene decidir si el evaluador está para
 discriminar o solo para dar contexto a un humano, porque con recall alto y precisión baja
 ya cumple lo segundo. La medición no obliga a tocar nada: informa la decisión.
+
+---
+
+## 2026-08-01 · Fuzzear la gramática: ¿descarta todo lo que no encaja, o algo la cuelga? — UN CRASH, arreglado
+
+**Montaje.** `politica.desde_json` es la frontera que parsea la salida cruda del LLM, que
+es dato hostil por defecto (regla 4). La regla 3 promete algo fuerte: *lo que no encaja se
+descarta, no se interpreta*. La propiedad que eso implica, y que aquí se prueba, es más
+estricta que "rechaza lo malo": **cualquier entrada o devuelve una `Propuesta` válida o
+lanza `PropuestaInvalida` — nunca otra excepción**. Cualquier otro crash (TypeError,
+OverflowError, RecursionError) no es un rechazo, es una superficie: de DoS, o de que el
+parser haga algo no previsto con dato del atacante. Se disparó una batería de 26 entradas
+adversariales: tipos confundidos, puertos `NaN`/`Infinity`/`0`/`65536`/float/bool, cidr
+basura e IPv6, listas y textos sobre el límite, unicode con nulos y RTL, payload sobre
+64 KB, y JSON anidado a lo bestia.
+
+**Resultado: 25 de 26 aguantaron (rechazo limpio o propuesta válida). Una petó.** Un array
+de 20000 corchetes anidados —**40 KB, por debajo del guardia de tamaño de 64 KB**, así que
+lo pasa— hace que `json.loads` reviente la pila con `RecursionError`. Y `desde_json` solo
+capturaba `JSONDecodeError`, de modo que el `RecursionError` **propagaba fuera de
+`PropuestaInvalida`**. El que llama, el triaje, solo ataja `PropuestaInvalida`: una
+inyección que consiga que el modelo emita basura anidada podía **tumbar la respuesta a un
+incidente**, justo cuando más falta hace. Es la regla 3 rota — lo que no encaja colgaba el
+plano de control en vez de descartarse.
+
+**Fix (commit 2616e6a): mínimo y del lado correcto.** Capturar `RecursionError` y
+convertirlo en `PropuestaInvalida`. Nada de subir límites ni adivinar: descartar, como
+manda la regla. Test de regresión que documenta que el crash estaba *después* del guardia
+de tamaño (por eso el guardia de tamaño, necesario, no bastaba: la profundidad es otro
+eje). 191 tests.
+
+**Cómo salió, y la nota honesta.** No fue una auditoría formal: fue un "a ver si algo
+peta" con gb la captura armada. Lo cazó una batería a mano, no un fuzzer de verdad —
+suelo, no techo: cubre las categorías que se me ocurrieron, no el espacio de entradas.
+Y queda un residual medido pero no cerrado: parsear un anidado profundo-pero-bajo-el-
+límite todavía gasta CPU (recurre y desenrolla) aunque ya no cuelgue; un pre-chequeo de
+profundidad sería más estricto, pero el catch ya cumple lo que la regla 3 exige —
+descartar sin reventar.
