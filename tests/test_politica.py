@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import random
 
 import pytest
 
@@ -127,6 +128,71 @@ def test_json_muy_anidado_se_descarta_no_revienta():
     assert len(hostil) < 64_000  # el crash estaba DESPUES del guardia de tamano
     with pytest.raises(PropuestaInvalida, match="anidado"):
         desde_json(hostil)
+
+
+def test_anidado_profundo_bajo_el_limite_de_recursion_tambien_se_descarta():
+    """El residual que quedo anotado al fuzzear: 500 niveles no revientan la pila, se
+    parseaban enteros (CPU gratis para el atacante) y morian despues en desde_dict.
+    El guardia de profundidad los corta antes de parsear."""
+    hostil = "[" * 500 + "]" * 500
+    with pytest.raises(PropuestaInvalida, match="anidado"):
+        desde_json(hostil)
+
+
+def test_corchetes_dentro_de_un_string_no_cuentan_como_profundidad():
+    """El guardia cuenta estructura, no caracteres: una descripcion llena de corchetes,
+    llaves y comillas escapadas es fea pero valida. Sin distinguir strings seria un
+    falso positivo y el guardia rechazaria propuestas legitimas."""
+    descripcion = "[" * 100 + ' {{{ comilla " y barra \\ ' + "]" * 100
+    crudo = _filtro(descripcion=descripcion)
+
+    assert desde_json(json.dumps(crudo)).descripcion == descripcion
+
+
+def test_propiedad_de_frontera_toda_entrada_muere_bien():
+    """La propiedad que el fuzzing dejo escrita: toda entrada produce Propuesta valida
+    O PropuestaInvalida — cualquier otra excepcion es superficie de DoS, porque el que
+    llama solo ataja PropuestaInvalida. Generador con semilla fija: determinista y sin
+    dependencias. Suelo, no techo — mutacional a ciegas, no guiado por cobertura."""
+    azar = random.Random(20260801)
+    valido = json.dumps(_filtro())
+    alfabeto = valido + '\\"[]{}:,0123456789.eE+-tfn \x00ñ‮'
+
+    def mutado():
+        s = list(valido)
+        for _ in range(azar.randint(1, 8)):
+            i = azar.randrange(len(s))
+            op = azar.randrange(3)
+            if op == 0 and len(s) > 1:
+                del s[i]
+            elif op == 1:
+                s[i] = azar.choice(alfabeto)
+            else:
+                s.insert(i, azar.choice(alfabeto))
+        return "".join(s)
+
+    def ruido():
+        return "".join(azar.choice(alfabeto) for _ in range(azar.randint(0, 300)))
+
+    def anidado():
+        abre = azar.choice(["[", "{", '{"a":['])
+        cierra = {"[": "]", "{": "}", '{"a":[': "]}"}[abre]
+        n = azar.randint(1, 3000)
+        return abre * n + azar.choice(["", '"x"', "1"]) + cierra * azar.randint(0, n)
+
+    generadores = (mutado, ruido, anidado)
+    for caso in range(2000):
+        entrada = azar.choice(generadores)()
+        try:
+            propuesta = desde_json(entrada)
+        except PropuestaInvalida:
+            continue
+        except Exception as e:  # la fuga que este test caza: nada mas debe escaparse
+            pytest.fail(
+                f"caso {caso}: {type(e).__name__} se escapo de la frontera "
+                f"con la entrada {entrada[:120]!r}"
+            )
+        assert propuesta.id  # si parseo, es una Propuesta formada, no basura
 
 
 def test_descripcion_demasiado_larga():

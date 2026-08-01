@@ -194,19 +194,55 @@ def desde_dict(crudo: Any) -> Propuesta:
     )
 
 
+# Una propuesta legitima anida 3 niveles (objeto -> cuerpo -> listas). 32 deja margen
+# de sobra sin dejar que un anidado hostil queme pila o CPU en json.loads.
+_PROFUNDIDAD_MAXIMA = 32
+
+
+def _demasiado_anidado(texto: str) -> bool:
+    """Cuenta profundidad estructural sin parsear: O(n) con salida temprana.
+
+    Los corchetes dentro de un string JSON no son estructura — sin distinguirlos,
+    una descripcion con corchetes seria un falso positivo y el guardia rechazaria
+    propuestas validas.
+    """
+    profundidad = 0
+    en_cadena = False
+    escapado = False
+    for c in texto:
+        if en_cadena:
+            if escapado:
+                escapado = False
+            elif c == "\\":
+                escapado = True
+            elif c == '"':
+                en_cadena = False
+        elif c == '"':
+            en_cadena = True
+        elif c in "[{":
+            profundidad += 1
+            if profundidad > _PROFUNDIDAD_MAXIMA:
+                return True
+        elif c in "]}":
+            profundidad -= 1
+    return False
+
+
 def desde_json(texto: str) -> Propuesta:
     """Punto de entrada para la salida cruda del LLM. Texto hostil por defecto."""
     if len(texto) > 64_000:
         raise PropuestaInvalida("la propuesta excede el tamano maximo")
+    if _demasiado_anidado(texto):
+        # El guardia de tamano no para el anidado hostil: 20000 corchetes son 40 KB.
+        # Y profundo-pero-bajo-el-limite-de-recursion tampoco peta: se parsea entero
+        # y gasta CPU gratis para el atacante. Se corta ANTES de parsear.
+        raise PropuestaInvalida("JSON demasiado anidado")
     try:
         return desde_dict(json.loads(texto))
     except json.JSONDecodeError as e:
         raise PropuestaInvalida(f"no es JSON valido: {e}") from e
     except RecursionError as e:
-        # JSON hostil anidado a mucha profundidad hace que json.loads reviente la pila
-        # (por debajo del limite de tamano: 20000 corchetes son 40 KB). Regla 3: lo que
-        # no encaja se DESCARTA, no cuelga el plano de control. Sin este catch el
-        # RecursionError propagaria fuera de PropuestaInvalida y el que llama (triaje),
-        # que solo ataja PropuestaInvalida, no lo cogeria: un incidente podria tumbar la
-        # respuesta con solo hacer que el modelo emita basura anidada.
+        # Segunda linea: si el escaner de profundidad juzgara mal alguna entrada, la
+        # propiedad de frontera (Propuesta o PropuestaInvalida, nunca otra excepcion)
+        # se mantiene — el que llama (triaje) solo ataja PropuestaInvalida.
         raise PropuestaInvalida("JSON demasiado anidado") from e
