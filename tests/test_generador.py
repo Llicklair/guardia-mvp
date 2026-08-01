@@ -25,6 +25,7 @@ from guardia.generador import (
     _INSTRUCCIONES,
     ENCARGOS,
     GeneradorCiego,
+    Rechazo,
     cargar_base,
 )
 from guardia.transporte import TransporteFallido
@@ -171,10 +172,26 @@ def test_rechaza_un_evento_que_no_encaja_en_el_esquema(base):
     assert "invalido" in generacion.admision.motivo
 
 
-def test_rechaza_una_respuesta_vacia(base):
-    generacion = _generador("no puedo ayudarte con eso", base).generar(ENCARGOS[0])
+def test_una_negativa_del_modelo_no_es_basura_ilegible(base):
+    """El hallazgo medido con Opus real: un modelo alineado se niega a escribir el corpus
+    del ataque dirigido. Su respuesta no tiene JSON, pero NO es lo mismo que ruido — es
+    una decision, y se clasifica aparte para no confundir 'no quiso' con 'no supo'."""
+    negativa = (
+        "No voy a generar ese corpus. Lo que pides es un payload ofensivo dirigido "
+        "a un tercero inocente, no una prueba de robustez."
+    )
+    generacion = _generador(negativa, base).generar(ENCARGOS[0])
     assert not generacion.admision.admitido
-    assert "ninguna linea" in generacion.admision.motivo
+    assert generacion.admision.clase is Rechazo.NO_COOPERO
+    assert generacion.crudo == negativa  # la negativa se conserva entera como evidencia
+
+
+def test_una_respuesta_de_verdad_vacia_es_otra_cosa(base):
+    """Vacio != negativa: un canal que devuelve nada hizo algo raro, y no es una decision
+    del modelo. Se distinguen porque se arreglan distinto."""
+    generacion = _generador("   \n  ", base).generar(ENCARGOS[0])
+    assert not generacion.admision.admitido
+    assert generacion.admision.clase is Rechazo.VACIA
 
 
 def test_rechaza_un_volcado_desproporcionado(base):
@@ -284,6 +301,39 @@ def test_lo_rechazado_se_conserva_aparte_en_vez_de_tirarse(tmp_path, capsys):
     assert "ataque" in (salida / "rechazadas" / "lockout-ssh.motivo.txt").read_text(
         encoding="utf-8"
     )
+
+
+def test_la_negativa_del_modelo_se_reporta_y_se_conserva_por_la_cli(tmp_path, capsys):
+    """De punta a punta lo que paso con Opus real: el modelo se niega, la CLI lo dice como
+    lo que es (no un fallo del canal) y guarda la negativa como evidencia."""
+    salida = tmp_path / "generado"
+    respuesta = tmp_path / "negativa.txt"
+    respuesta.write_text(
+        "No voy a generar ese corpus: es un payload ofensivo, no una prueba.\n",
+        encoding="utf-8",
+    )
+    script = tmp_path / "modelo_que_se_niega.py"
+    ruta = str(respuesta).replace("\\", "/")
+    script.write_text(
+        f"import sys\nsys.stdin.read()\nprint(open('{ruta}', encoding='utf-8').read())\n",
+        encoding="utf-8",
+    )
+    codigo = main(
+        [
+            "generar-inyecciones",
+            "--salida",
+            str(salida),
+            "--objetivo",
+            "desviar-victima",
+            "--comando-llm",
+            f'"{_PYTHON}" "{script}"',
+        ]
+    )
+    texto = capsys.readouterr()
+    assert codigo == 8, texto.out  # nada admitido, pero...
+    assert "NO COOPERO" in texto.out  # ...se dice por que, y no es 'canal caido'
+    conservada = (salida / "rechazadas" / "desviar-victima.crudo.txt").read_text(encoding="utf-8")
+    assert "No voy a generar" in conservada
 
 
 def test_el_canal_caido_en_todos_los_encargos_pone_la_tirada_en_cuarentena(tmp_path, capsys):

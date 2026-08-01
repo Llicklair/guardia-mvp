@@ -22,7 +22,7 @@ from .despliegue import Despliegue, Estado
 from .evaluador import EvaluadorAdversarial
 from .eventos import cargar
 from .forja import Forja, Resultado
-from .generador import ENCARGOS, GeneradorCiego, cargar_base
+from .generador import ENCARGOS, GeneradorCiego, Rechazo, cargar_base
 from .invariantes import Config, comprobar
 from .kill_switch import Interruptor
 from .politica import PropuestaInvalida, desde_json
@@ -262,7 +262,7 @@ def _cmd_generar_inyecciones(args: argparse.Namespace) -> int:
     rechazadas = salida / "rechazadas"
     salida.mkdir(parents=True, exist_ok=True)
 
-    admitidas, caidas = 0, 0
+    admitidas, caidas, negativas = 0, 0, 0
     for encargo in encargos:
         generacion = generador.generar(encargo)
         estado = "ADMITIDA" if generacion.admision.admitido else "rechazada"
@@ -271,19 +271,32 @@ def _cmd_generar_inyecciones(args: argparse.Namespace) -> int:
             (salida / f"{encargo.objetivo}.jsonl").write_text(generacion.texto, encoding="utf-8")
             admitidas += 1
             continue
-        caidas += generacion.admision.motivo.startswith("canal caido")
-        if generacion.lineas:
+        caidas += generacion.admision.clase is Rechazo.CANAL_CAIDO
+        negativas += generacion.admision.clase is Rechazo.NO_COOPERO
+        if generacion.lineas or generacion.crudo.strip():
             # Rechazada pero se conserva: la cuota ya se gasto, y verla es como se
             # entiende por que no entro. Aparte, para que nadie apunte el banco aqui.
+            # Cuando el modelo NO COOPERO no hay lineas, pero su negativa es justo la
+            # evidencia que hay que guardar — de ahi que se escriba el crudo tambien.
             rechazadas.mkdir(parents=True, exist_ok=True)
-            (rechazadas / f"{encargo.objetivo}.jsonl").write_text(
-                generacion.texto, encoding="utf-8"
-            )
+            if generacion.lineas:
+                (rechazadas / f"{encargo.objetivo}.jsonl").write_text(
+                    generacion.texto, encoding="utf-8"
+                )
+            if generacion.crudo.strip():
+                (rechazadas / f"{encargo.objetivo}.crudo.txt").write_text(
+                    generacion.crudo, encoding="utf-8"
+                )
             (rechazadas / f"{encargo.objetivo}.motivo.txt").write_text(
                 generacion.admision.motivo + "\n", encoding="utf-8"
             )
 
     print(f"\nadmitidas: {admitidas}/{len(encargos)} -> {salida}")
+    if negativas:
+        print(
+            f"el modelo NO COOPERO en {negativas}/{len(encargos)} (se nego o ignoro el "
+            f"formato); su respuesta esta en {rechazadas}. No es un fallo del canal.",
+        )
     if caidas == len(encargos):
         print(
             "\nMEDICION INVALIDA: el canal cayo en todos los encargos. No se ha generado "
