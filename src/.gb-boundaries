@@ -215,3 +215,42 @@ guardia.evaluador -/-> guardia.generador
 guardia.transporte -/-> guardia.generador
 guardia.banco -/-> guardia.generador
 guardia.banco_evaluador -/-> guardia.generador
+
+# El informe es una VISTA de solo lectura: proyecta el audit log + estado a HTML y nada
+# del sistema lo importa salvo la CLI. Importa CERO modulos del dominio (recibe los datos
+# ya leidos como argumentos), asi que no puede ganar un camino de autoridad ni por
+# accidente. Estas fronteras lo blindan en el grafo: la vista mira, nunca actua.
+guardia.informe -/-> guardia.forja
+guardia.informe -/-> guardia.despliegue
+guardia.informe -/-> guardia.aplicador
+guardia.informe -/-> guardia.motor
+guardia.informe -/-> guardia.kill_switch
+guardia.informe -/-> guardia.actores
+guardia.informe -/-> guardia.auditoria
+guardia.informe -/-> guardia.triaje
+guardia.informe -/-> guardia.evaluador
+guardia.informe -/-> guardia.generador
+guardia.informe -/-> guardia.politica
+guardia.informe -/-> guardia.invariantes
+guardia.informe -/-> guardia.eventos
+guardia.informe -/-> guardia.banco
+guardia.informe -/-> guardia.banco_evaluador
+guardia.informe -/-> guardia.transporte
+guardia.informe -/-> guardia.cli
+
+guardia.actores -/-> guardia.informe
+guardia.auditoria -/-> guardia.informe
+guardia.politica -/-> guardia.informe
+guardia.invariantes -/-> guardia.informe
+guardia.eventos -/-> guardia.informe
+guardia.motor -/-> guardia.informe
+guardia.aplicador -/-> guardia.informe
+guardia.kill_switch -/-> guardia.informe
+guardia.forja -/-> guardia.informe
+guardia.despliegue -/-> guardia.informe
+guardia.triaje -/-> guardia.informe
+guardia.evaluador -/-> guardia.informe
+guardia.generador -/-> guardia.informe
+guardia.transporte -/-> guardia.informe
+guardia.banco -/-> guardia.informe
+guardia.banco_evaluador -/-> guardia.informe

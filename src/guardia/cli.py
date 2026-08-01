@@ -12,8 +12,10 @@ import argparse
 import json
 import shlex
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
+from . import informe as informe_html
 from .actores import Actor, SinAutoridad
 from .aplicador import Aplicador
 from .banco import Banco
@@ -95,6 +97,35 @@ def _cmd_auditoria(args: argparse.Namespace) -> int:
     if not veredicto.intacta:
         print(f"\nAVISO: cadena rota en {veredicto.rota_en} ({veredicto.motivo})", file=sys.stderr)
         return 4
+    return 0
+
+
+def _cmd_informe(args: argparse.Namespace) -> int:
+    """Proyecta el estado y el log de auditoria a una pagina HTML de SOLO LECTURA.
+
+    Es una vista, no una autoridad: lee el plano de control y renderiza. No aplica ni
+    confirma nada — eso sigue en los comandos con autoridad. Aqui la CLI (que ya tiene
+    la autoridad para leer) hace de puente entre el estado en disco y el renderizador
+    puro de `informe`."""
+    interruptor = _interruptor(args)
+    auditoria = interruptor.auditoria
+    entradas = list(auditoria.leer())
+    veredicto = auditoria.verificar()
+    generado = datetime.now(UTC).isoformat(timespec="seconds")
+    salida = Path(args.salida) if args.salida else Path(args.control) / "informe.html"
+    salida.parent.mkdir(parents=True, exist_ok=True)
+    salida.write_text(
+        informe_html.render(interruptor.estado(), entradas, veredicto, generado),
+        encoding="utf-8",
+    )
+    marca = "intacta" if veredicto.intacta else f"ROTA en #{veredicto.rota_en}"
+    print(f"informe escrito: {salida} · {veredicto.entradas} entrada(s) · cadena {marca}")
+    if not veredicto.intacta:
+        print(
+            f"AVISO: la cadena esta rota ({veredicto.motivo}); el informe lo muestra, "
+            "pero el estado no es de fiar a partir de ahi.",
+            file=sys.stderr,
+        )
     return 0
 
 
@@ -533,6 +564,14 @@ def construir_parser() -> argparse.ArgumentParser:
         "--verificar", action="store_true", help="solo comprobar la cadena de hashes"
     )
     auditoria.set_defaults(func=_cmd_auditoria)
+
+    informe = sub.add_parser(
+        "informe", help="proyecta estado + log de auditoria a una pagina HTML de solo lectura"
+    )
+    informe.add_argument(
+        "--salida", default=None, help="fichero HTML de salida (por defecto <control>/informe.html)"
+    )
+    informe.set_defaults(func=_cmd_informe)
 
     validar = sub.add_parser("validar", help="valida una propuesta contra gramatica e invariantes")
     validar.add_argument("fichero", nargs="?", help="JSON de la propuesta (por defecto, stdin)")
