@@ -202,3 +202,11 @@ def desde_json(texto: str) -> Propuesta:
         return desde_dict(json.loads(texto))
     except json.JSONDecodeError as e:
         raise PropuestaInvalida(f"no es JSON valido: {e}") from e
+    except RecursionError as e:
+        # JSON hostil anidado a mucha profundidad hace que json.loads reviente la pila
+        # (por debajo del limite de tamano: 20000 corchetes son 40 KB). Regla 3: lo que
+        # no encaja se DESCARTA, no cuelga el plano de control. Sin este catch el
+        # RecursionError propagaria fuera de PropuestaInvalida y el que llama (triaje),
+        # que solo ataja PropuestaInvalida, no lo cogeria: un incidente podria tumbar la
+        # respuesta con solo hacer que el modelo emita basura anidada.
+        raise PropuestaInvalida("JSON demasiado anidado") from e

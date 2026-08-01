@@ -118,6 +118,17 @@ def test_texto_gigante_se_rechaza_antes_de_parsear():
         desde_json("x" * 64_001)
 
 
+def test_json_muy_anidado_se_descarta_no_revienta():
+    """20000 corchetes son 40 KB: pasan el guardia de tamano, pero hacen que json.loads
+    reviente la pila con RecursionError. Regla 3: eso se DESCARTA como PropuestaInvalida,
+    no propaga fuera a colgar el plano de control — el que llama (triaje) solo ataja
+    PropuestaInvalida. Salio de fuzzear la gramatica ('a ver si algo peta')."""
+    hostil = "[" * 20_000 + "]" * 20_000
+    assert len(hostil) < 64_000  # el crash estaba DESPUES del guardia de tamano
+    with pytest.raises(PropuestaInvalida, match="anidado"):
+        desde_json(hostil)
+
+
 def test_descripcion_demasiado_larga():
     crudo = _filtro(descripcion="a" * 513)
 
