@@ -530,3 +530,32 @@ semilla fija — no está guiado por cobertura, y 2000 casos deterministas son l
 2000 en cada CI: vigilan regresiones de la propiedad, no exploran espacio nuevo. Un
 fuzzer real (coverage-guided, corpus creciente) sigue en la lista si la frontera crece.
 186 tests recogidos (medido con `pytest --co`, no de memoria), gates en verde.
+
+## El instrumento de varianza, listo — la medición espera al OK de cuota
+
+La medición con Opus dejó un número frágil: **0/5 de discriminación que cuelga de UNA
+objeción [cobertura] sobre el control**. Una pasada sola no puede distinguir si esa
+objeción es sistemática (el evaluador siempre la pone: la señal de verdad no discrimina)
+o ruido de muestreo (salió esa vez: la señal es mejor de lo que el 0/5 dice). Es el
+pendiente (1a), y hasta ahora el banco no sabía medirlo.
+
+Ahora sí: `banco-evaluador --pasadas N` corre N pasadas completas e independientes —
+control incluido, que se reevalúa en cada una porque su estabilidad es justo lo que se
+mide, al revés que dentro de una pasada donde reevaluarlo solo añadiría ruido. El
+`InformeVarianza` reporta tres cosas: la matriz por pasada, la distribución de
+clasificaciones por incidente (con marca INESTABLE donde no hay unanimidad), y la cifra
+que motivó todo — **por lente, en cuántas de las N pasadas objetó al control** (k/N:
+N/N es sistemática, 1/N es ruido). La cuarentena se hereda con más dureza: cualquier
+pasada sin dictamen invalida la varianza entera, porque mezclar pasadas completas con
+averiadas presentaría como estabilidad lo que son huecos (exit 9, verificado contra la
+CLI real con un transporte inexistente).
+
+**Lo que este cambio NO hace, a propósito:** no sube ni baja el listón de objeción — esa
+es la decisión de diseño pendiente (1b), y se toma *mirando* este reporte, no dentro de
+él. El banco sigue midiendo sin decidir. Y la medición real sigue sin correr: N pasadas
+gastan N veces la cuota, así que espera el OK explícito (`--pasadas 5 --comando-llm
+'claude -p --tools "" --model opus'`, con `--control` global antes del subcomando). Los
+tests cubren la mecánica con transporte programado —unánime con decisor estable, la
+objeción intermitente contada como 1/N, cuarentena por hueco— que es lo comprobable sin
+modelo; si el instrumento mide *bien* al modelo solo se sabrá midiendo. 190 tests
+recogidos, gates en verde.
