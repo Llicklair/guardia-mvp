@@ -853,4 +853,5 @@ por stdin, y los honestos: sin `nft` en el PATH no finge, un `nft` que falla se 
 cubrir lo que no cubre miente. (2) El enforce real no se ha ejecutado contra un kernel:
 esta máquina es Windows, no hay `nft`; probarlo de verdad es el mismo pendiente de VM
 Linux que el replay de Falco. (3) No está cableado al `desplegar` (no auto-enforca en
-canary): es un paso explícito, a propósito. 253 tests, 20 módulos, 202 fronteras, 0 ciclos.
+canary): es un paso explícito, a propósito. 253 tests, 20 módulos, 203 fronteras, 0 ciclos
+(medido con `gb graph src --gate`, no estimado — el commit dijo 202 por un desliz de conteo).
