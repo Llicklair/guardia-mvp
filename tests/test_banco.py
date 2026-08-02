@@ -229,3 +229,55 @@ def test_el_heuristico_contiene_pese_a_la_inyeccion(tmp_path, nombre):
     banco = _banco(tmp_path, ProveedorHeuristico())
     resultado = banco.un_incidente(Objetivo(nombre, "prueba"))
     assert not resultado.politica_mala_aplicada
+
+
+def _banco_en(tmp_path, proveedor, directorio):
+    """Un banco apuntando a un corpus arbitrario (no el canonico): asi se prueba un
+    corpus GENERADO parcial, que es donde vive el fallo del FileNotFoundError crudo."""
+    interruptor = Interruptor(tmp_path / "control")
+    interruptor.descongelar(Actor.HUMANO, "banco")
+    crear = lambda incidente: _despliegue(tmp_path, interruptor, f"-{incidente}")  # noqa: E731
+    return Banco(Triaje(proveedor, interruptor.auditoria), crear, directorio)
+
+
+def test_un_corpus_sin_ficheros_no_revienta_sino_que_no_mide(tmp_path):
+    """El fallo real: banco sobre un corpus generado que no admitio NADA reventaba con
+    FileNotFoundError. Ahora cada objetivo ausente da SIN_ESTIMULO y no hay nada medido:
+    fingir 'contuvo' sobre un incidente que no existe seria mentir."""
+    vacio = tmp_path / "vacio"
+    vacio.mkdir()
+    informe = _banco_en(tmp_path, ProveedorHeuristico(), vacio).correr()
+    assert informe.sin_estimulo == len(_TODOS)
+    assert informe.medidos == 0
+    assert all(r.veredicto is Veredicto.SIN_ESTIMULO for r in informe.resultados)
+    assert informe.politicas_malas_aplicadas == 0
+
+
+def test_un_corpus_parcial_mide_lo_presente_y_marca_lo_ausente(tmp_path):
+    """Un corpus generado suele admitir solo un subconjunto. Banco debe medir lo que
+    hay y contar el resto como sin_estimulo, sin crash y sin inflar el denominador."""
+    parcial = tmp_path / "parcial"
+    parcial.mkdir()
+    origen = INYECCIONES_POR_DEFECTO / "cegar-registro.jsonl"
+    (parcial / "cegar-registro.jsonl").write_text(
+        origen.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    informe = _banco_en(tmp_path, ProveedorHeuristico(), parcial).correr()
+    assert informe.medidos == 1
+    assert informe.sin_estimulo == len(_TODOS) - 1
+    medidos = [r for r in informe.resultados if r.veredicto is not Veredicto.SIN_ESTIMULO]
+    assert [r.incidente for r in medidos] == ["cegar-registro"]
+
+
+def test_la_cli_del_banco_en_corpus_vacio_no_finge_exito(tmp_path, capsys):
+    """Sin nada que medir la CLI NO debe imprimir un '0 politicas malas' verde (seria
+    teatro): entra en cuarentena (exit 9) como cualquier medicion que no se puede afirmar."""
+    vacio = tmp_path / "vacio"
+    vacio.mkdir()
+    control = tmp_path / "control"
+    assert main(["--control", str(control), "descongelar", "banco vacio"]) == 0
+    codigo = main(["--control", str(control), "banco", "--corpus", str(vacio)])
+    salida = capsys.readouterr()
+    assert codigo == 9, salida.out
+    assert "NADA QUE MEDIR" in salida.err
+    assert "POLITICAS MALAS APLICADAS" not in salida.out

@@ -273,9 +273,22 @@ def _cmd_banco(args: argparse.Namespace) -> int:
     for r in informe.resultados:
         print(f"{r.incidente:<18} {r.veredicto.value:<24} {r.estado:<18} {r.propuesta}")
     total = len(informe.resultados)
+    medidos = informe.medidos
+    if informe.sin_estimulo:
+        print(
+            f"\n{informe.sin_estimulo}/{total} objetivo(s) sin estimulo en el corpus "
+            "(el generador no los poblo): no medidos."
+        )
+    if medidos == 0:
+        print(
+            "\nNADA QUE MEDIR: ningun objetivo trae incidente en este corpus. "
+            "La metrica no se puede afirmar.",
+            file=sys.stderr,
+        )
+        return 9
     print(
-        f"\ncontenidos: {informe.contenidos}/{total} · "
-        f"el modelo pico en {informe.veces_que_pico_el_modelo}/{total}"
+        f"\ncontenidos: {informe.contenidos}/{medidos} · "
+        f"el modelo pico en {informe.veces_que_pico_el_modelo}/{medidos}"
     )
     if not informe.valido:
         print(

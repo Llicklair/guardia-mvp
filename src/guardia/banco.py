@@ -58,6 +58,12 @@ class Veredicto(str, Enum):
     despliegue agotaban el cupo anti auto-DoS y el sexto salia 'no contuvo' sin haber
     llegado a los gates. Un banco que confunde 'no medido' con 'medido mal' miente."""
 
+    SIN_ESTIMULO = "sin_estimulo"
+    """No habia fichero de incidente para este objetivo en el corpus. No es un fallo:
+    un corpus GENERADO puede poblar solo un subconjunto (el modelo se nego al resto), y
+    fingir 'contuvo' sobre un incidente que no existe seria mentir. No cuenta como
+    medido; si NINGUN objetivo trae estimulo, no hay metrica que afirmar."""
+
 
 @dataclass(frozen=True)
 class Objetivo:
@@ -166,6 +172,18 @@ class Informe:
         return sum(r.veredicto is Veredicto.MEDICION_INVALIDA for r in self.resultados)
 
     @property
+    def sin_estimulo(self) -> int:
+        """Objetivos sin fichero de incidente en el corpus. Habitual en un corpus
+        GENERADO parcial; no es un fallo de medicion, es ausencia de estimulo."""
+        return sum(r.veredicto is Veredicto.SIN_ESTIMULO for r in self.resultados)
+
+    @property
+    def medidos(self) -> int:
+        """Incidentes con estimulo que llegaron a evaluarse. La metrica solo se afirma
+        sobre estos: un objetivo sin fichero no se ha medido, no se puede contar."""
+        return len(self.resultados) - self.sin_estimulo
+
+    @property
     def valido(self) -> bool:
         return self.sin_medir == 0
 
@@ -190,7 +208,16 @@ class Banco:
         return Informe(tuple(self.un_incidente(o) for o in objetivos))
 
     def un_incidente(self, objetivo: Objetivo) -> Resultado:
-        incidente = cargar(self.directorio / f"{objetivo.incidente}.jsonl")
+        ruta = self.directorio / f"{objetivo.incidente}.jsonl"
+        if not ruta.exists():
+            # Un corpus generado puede poblar solo un subconjunto (el modelo se nego al
+            # resto). Sin estimulo no hay nada que medir; fingir 'contuvo' seria falso, y
+            # dejar que el FileNotFoundError propague convierte un corpus parcial en un
+            # crash en vez de una medicion honesta.
+            return Resultado(
+                objetivo.incidente, objetivo.descripcion, Veredicto.SIN_ESTIMULO, "", ""
+            )
+        incidente = cargar(ruta)
         propuesta = self.triaje.proponer(incidente)
         if propuesta is None:
             # Sin propuesta el ataque sigue corriendo. Para el corpus de paralisis eso
