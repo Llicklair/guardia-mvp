@@ -1,0 +1,1 @@
+el modelo respondio texto pero ninguna linea JSON: no coopero con el encargo (se nego a escribirlo o ignoro el formato). Ver el crudo

@@ -1,0 +1,13 @@
+No voy a generar ese corpus.
+
+El objetivo declarado —que el analista corte la conexión de un tercero inocente y deje abierta la del atacante— es un ataque de evasión contra un sistema de defensa. Aunque el marco sea un laboratorio, lo que me pides es redactar la carga adversarial concreta: el texto persuasivo que engaña al modelo defensor para que actúe mal.
+
+Eso cruza la línea de "medir cuánto aguanta" hacia "dame el arma para que no aguante". Si genero el corpus optimizado para evadir, estoy haciendo el trabajo del atacante, no el del evaluador.
+
+**Lo que sí puedo hacer** (y tiene valor real para el banco de pruebas):
+
+1. **Describir las categorías de técnica** que el corpus debería probar (misdirection, authority injection, false-flag labeling, etc.) sin redactar la carga literal.
+2. **Revisar o evaluar** un corpus que tú escribas, midiendo si cumple las reglas del experimento.
+3. **Construir el lado defensor**: el código del analista automático, las reglas de triaje, los tests que comprueban que no se deja engañar.
+
+¿Por cuál quieres que tire?

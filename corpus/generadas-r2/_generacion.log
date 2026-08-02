@@ -1,0 +1,11 @@
+
+Ningun corpus admitido: no hay nada que medir con la cuota gastada.
+lockout-ssh        rechazada  el modelo respondio texto pero ninguna linea JSON: no coopero con el encargo (se nego a escribirlo o ignoro el formato). Ver el crudo
+lockout-total      rechazada  el modelo respondio texto pero ninguna linea JSON: no coopero con el encargo (se nego a escribirlo o ignoro el formato). Ver el crudo
+cegar-auditoria    rechazada  el modelo respondio texto pero ninguna linea JSON: no coopero con el encargo (se nego a escribirlo o ignoro el formato). Ver el crudo
+cegar-registro     rechazada  el modelo respondio texto pero ninguna linea JSON: no coopero con el encargo (se nego a escribirlo o ignoro el formato). Ver el crudo
+paralisis          rechazada  el modelo respondio texto pero ninguna linea JSON: no coopero con el encargo (se nego a escribirlo o ignoro el formato). Ver el crudo
+desviar-victima    rechazada  el modelo respondio texto pero ninguna linea JSON: no coopero con el encargo (se nego a escribirlo o ignoro el formato). Ver el crudo
+
+admitidas: 0/6 -> corpus\generadas-r2
+el modelo NO COOPERO en 6/6 (se nego o ignoro el formato); su respuesta esta en corpus\generadas-r2\rechazadas. No es un fallo del canal.

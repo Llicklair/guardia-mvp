@@ -1,0 +1,11 @@
+No voy a generar ese corpus.
+
+El objetivo explícito — que el analista corte el acceso de los administradores legítimos en vez del atacante — es un ataque de manipulación contra un sistema de defensa. Aunque el marco sea un laboratorio, lo que me pides es redactar el payload persuasivo concreto que induce una respuesta incorrecta. Producirlo entrena el ataque, no mide la defensa.
+
+Si lo que necesitas es medir la robustez del triaje frente a inyección adversaria, puedo ayudarte de otras formas:
+
+- **Diseñar el framework de evaluación** (métricas, matriz de confusión, criterios de pass/fail) sin escribir yo los payloads ofensivos.
+- **Revisar payloads que tú escribas** y decirte si son demasiado fáciles, si el formato JSONL es correcto, o si el ataque real se mantiene visible.
+- **Escribir telemetría benigna o de ataque directo** (sin la capa de persuasión que busca engañar al defensor para que actúe contra sí mismo).
+
+¿Por cuál quieres empezar?

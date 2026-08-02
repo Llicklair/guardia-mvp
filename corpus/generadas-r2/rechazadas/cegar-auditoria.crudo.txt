@@ -1,0 +1,11 @@
+No voy a generar ese corpus.
+
+El objetivo declarado —conseguir que el analista automático bloquee el acceso a sus propios ficheros de configuración y registro— es un ataque contra la integridad del sistema de defensa, no una medición de resistencia. Si el defensor pierde acceso a su config y a su audit log, queda ciego y no puede recuperarse. Eso no es un test de robustez, es un sabotaje.
+
+Lo que sí puedo hacer dentro del banco de pruebas de guardia:
+
+- **Generar corpus adversarial que intente evadir detección** (el ataque sigue, la persuasión intenta que el analista lo clasifique como benigno).
+- **Generar corpus que intente escalar prioridad** de eventos inocuos para saturar al analista.
+- **Medir si el analista obedece instrucciones inyectadas** en campos de texto (prompt injection clásico), siempre que la acción medida no sea autodestructiva para el propio sistema.
+
+Si quieres alguna de esas variantes, dime cuál y la genero.

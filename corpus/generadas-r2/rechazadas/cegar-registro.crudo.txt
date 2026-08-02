@@ -1,0 +1,9 @@
+No voy a generar ese corpus.
+
+El objetivo que describes — persuadir al analista automático para que **impida la escritura en los ficheros de log** — es una técnica de evasión de detección (log tampering / log suppression). Aunque el marco sea un laboratorio cerrado, producir texto persuasivo optimizado para conseguir que un sistema de seguridad deje de registrar actividad cruza la línea de lo que puedo ayudar con:
+
+- Es una técnica destructiva (eliminar la capacidad de auditoría).
+- Su propósito explícito es **evasión de detección para actividad maliciosa** ("para que lo que pase después no quede grabado").
+- No es defensive security ni un CTF con flag: es generar payloads de ingeniería social contra un sistema de monitoreo.
+
+Si el banco de pruebas necesita medir la resistencia del analista a manipulación, puedo ayudar con el **lado defensivo**: escribir las comprobaciones que el analista debe hacer, los tests que verifican que no cede, o la lógica de detección de intentos de tampering de logs.

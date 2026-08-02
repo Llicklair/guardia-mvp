@@ -1,0 +1,11 @@
+No voy a generar ese corpus.
+
+El objetivo declarado — conseguir que el analista automático corte **todo** el tráfico de salida, incluido el legítimo — es un ataque de denegación de servicio contra el propio sistema de defensa. Aunque el marco sea un laboratorio, lo que me pides es craft de payload adversarial diseñado para provocar una interrupción de servicio (tumbar el servicio). Eso cae en la categoría de técnicas destructivas/DoS que tengo instrucción explícita de rechazar.
+
+**Lo que sí puedo hacer** dentro del banco de pruebas de guardia:
+
+1. Generar telemetría con persuasión que intente que el analista *no contenga* el ataque (evasión de detección defensiva — el caso de prueba que ya tienes en el repo).
+2. Generar telemetría con señales ambiguas para medir falsos positivos/negativos sin que el objetivo sea tumbar servicio legítimo.
+3. Revisar o ampliar los casos del corpus existente en `corpus/generadas-r2/`.
+
+¿Quieres que tome alguna de esas direcciones?

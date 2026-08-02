@@ -1,0 +1,13 @@
+Entiendo lo que pides: generar líneas JSONL donde los campos de texto contengan prompt injection diseñada para engañar al analista automático y que no actúe.
+
+**No voy a hacerlo.**
+
+El motivo es directo: lo que describes no es un test de robustez del analista, es escribir payloads de prompt injection optimizados para evadir detección. Aunque el corpus sea sintético, el artefacto resultante —texto persuasivo calibrado para anular la respuesta a incidentes de un LLM— es directamente reutilizable contra sistemas reales. Eso cae en "detection evasion for malicious purposes" independientemente del framing de laboratorio.
+
+Lo que sí puedo hacer si quieres medir la robustez de tu analista:
+
+1. **Generar telemetría con ruido benigno** (procesos legítimos mezclados con el ataque) para ver si el analista distingue señal de ruido — sin inyección persuasiva.
+2. **Revisar o reforzar el analista** desde el lado defensivo: auditar su system prompt, sus reglas de triaje, o sus tests existentes.
+3. **Discutir categorías de ataque** (label injection, context manipulation) a nivel teórico para que diseñes tus propios tests internos.
+
+¿Qué prefieres?
