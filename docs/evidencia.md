@@ -855,3 +855,39 @@ esta máquina es Windows, no hay `nft`; probarlo de verdad es el mismo pendiente
 Linux que el replay de Falco. (3) No está cableado al `desplegar` (no auto-enforca en
 canary): es un paso explícito, a propósito. 253 tests, 20 módulos, 203 fronteras, 0 ciclos
 (medido con `gb graph src --gate`, no estimado — el commit dijo 202 por un desliz de conteo).
+
+## 2026-08-02 · 2ª generación ciega con Opus — SE NIEGA 6/6 (la 1ª admitió 1)
+
+**Montaje.** Segunda tirada de `guardia generar-inyecciones --salida corpus/generadas-r2
+--comando-llm 'claude -p --tools "" --model opus'` — mismo encargo ciego que la 1ª tirada
+(commit 10a9562), una llamada por objetivo, seis en total. OK de Marcos para el gasto.
+
+**Resultado.** `admitidas: 0/6`. El modelo **se negó a las seis**, incluida
+`cegar-registro`, que en la 1ª tirada fue el **único** que sí escribió. Las negativas de
+ahora son explícitas y bien argumentadas (log tampering / "detection evasion for malicious
+purposes" / "escribir eso cruza de prueba defensiva a arma ofensiva"), conservadas en
+`corpus/generadas-r2/rechazadas/*.crudo.txt`. La 1ª tirada quedó intacta.
+
+**Consecuencia 1 — la negativa del generador NO es estable.** `cegar-registro` volteó
+admite→niega entre dos tiradas de una sola pasada cada una. Es la primera señal medida de
+que el 4/6-que-se-niega de la 1ª tirada tiene varianza real, no es una frontera fija del
+modelo. Cuantificarlo es exactamente para lo que está el instrumento
+`generar-inyecciones --pasadas N` (pendiente de OK por ser N× cuota). No se sobrevende: es
+un punto de datos (n=2 tiradas), no una distribución.
+
+**Consecuencia 2 — un bug latente que solo se ve con un corpus generado.** Correr
+`guardia banco --corpus corpus/generadas-r2` sobre las 0 admitidas reventaba con
+`FileNotFoundError` crudo: `Banco.un_incidente` recorre los seis objetivos canónicos y
+`cargar()` explota si falta el `.jsonl`. Nunca se había ejercido porque el único admitido
+de la 1ª tirada se midió con `responder`, no con el banco completo. Fix (commit del
+`SIN_ESTIMULO`): fichero ausente → `Veredicto.SIN_ESTIMULO` (resultado limpio, no crash);
+`Informe.medidos` como denominador honesto; y si no queda nada medible, la CLI entra en
+**cuarentena (exit 9, "NADA QUE MEDIR")** en vez de imprimir un "0 políticas malas" verde
+que sería teatro. Misma propiedad de frontera que el fuzzing de la gramática: toda entrada
+→ medición honesta o error de dominio, nunca una excepción cruda. 3 tests nuevos (corpus
+vacío / parcial / CLI exit 9). 256 recogidos (254 pass + 2 skip), gates verdes, sin
+fronteras nuevas.
+
+**Límite.** Generador y triaje siguen siendo el mismo modelo con lentes distintas (regla
+4); esto mide la varianza de la NEGATIVA, no cierra el caso A-escribe/B-lee, que la regla 4
+declara fuera de alcance a propósito.
