@@ -819,3 +819,38 @@ tapar con código; es un límite conocido y elegido.
 la separación rule-4-máxima y ya está montada y medida. Pasar a pesos independientes
 exigiría relajar la regla 4, que es harina de otro costal y no se toca sin decisión
 explícita. Item 1 **cerrado por regla**, sin gasto.
+
+## 2026-08-02 · El punto de enforcement: propuesta -> ejecución, hecho visible
+
+Hasta aquí, "aplicar" escribía un `politica-activa.json` y probaba el rollback por hash,
+pero ese JSON no cortaba nada: el último tramo —empujar la política al kernel— era un TODO
+declarado en el docstring del aplicador. Marcos lo señaló ("no veo correlación entre la
+propuesta y la ejecución"). Este es ese cable.
+
+**`src/guardia/nftables.py` + `guardia enforcement`.** Traduce la política activa a un
+script `nft` y, solo con `--aplicar`, lo empuja con `nft -f -`. Dos mitades a propósito:
+`ruleset(politicas)` es pura (política → texto nft, testeable sin root ni kernel), y
+`aplicar(..., dry_run)` es lo único que toca el sistema. **Dry-run por defecto:** sin
+banderas imprime el ruleset y no toca nada; enforcar de verdad exige la bandera Y Linux
+con `nft` + privilegios. Misma disciplina de siempre: lo barato sin banderas, lo que toca
+el sistema a mano.
+
+**Medido de punta a punta (heurístico, sin cuota):** incidente → `responder` propone
+`auto-incidente-0001-egress` (filtro_red) → T3 canary → `enforcement` produce:
+
+```
+add rule inet guardia egress ip daddr 203.0.113.0/24 tcp dport { 4444, 9001 } drop
+```
+
+Lo que el proponente propuso, lo que los gates aprobaron y lo que el kernel cortaría son
+la misma cosa, y ahora se puede leer. 14 tests: la traducción (drop del destino en esos
+puertos, carga atómica add/delete/add, ingress mira el origen), el dry-run que NO lanza
+`nft` (monkeypatch que peta si se lanza un proceso), el enforce real que empuja el ruleset
+por stdin, y los honestos: sin `nft` en el PATH no finge, un `nft` que falla se reporta.
+
+**Límites dichos de frente.** (1) Solo `filtro_red`; `confinamiento` (seccomp/apparmor) y
+`regla_deteccion` (Falco) se SALTAN con constancia, no en silencio — un ruleset que dice
+cubrir lo que no cubre miente. (2) El enforce real no se ha ejecutado contra un kernel:
+esta máquina es Windows, no hay `nft`; probarlo de verdad es el mismo pendiente de VM
+Linux que el replay de Falco. (3) No está cableado al `desplegar` (no auto-enforca en
+canary): es un paso explícito, a propósito. 253 tests, 20 módulos, 202 fronteras, 0 ciclos.

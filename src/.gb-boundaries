@@ -254,3 +254,45 @@ guardia.generador -/-> guardia.informe
 guardia.transporte -/-> guardia.informe
 guardia.banco -/-> guardia.informe
 guardia.banco_evaluador -/-> guardia.informe
+
+# nftables es el ADAPTADOR DE SALIDA: traduce la politica activa (dicts ya serializados)
+# a reglas nft. Es el ultimo eslabon, no un camino de autoridad — importa CERO modulos del
+# dominio (trabaja sobre dicts + stdlib), asi que traduce lo que ya paso los gates, nunca
+# decide si pasa. Nada lo importa salvo la CLI. Estas fronteras lo dejan como una hoja: la
+# traduccion mira la politica, no la maquinaria que la produjo.
+guardia.nftables -/-> guardia.crisol
+guardia.nftables -/-> guardia.despliegue
+guardia.nftables -/-> guardia.aplicador
+guardia.nftables -/-> guardia.motor
+guardia.nftables -/-> guardia.kill_switch
+guardia.nftables -/-> guardia.actores
+guardia.nftables -/-> guardia.auditoria
+guardia.nftables -/-> guardia.triaje
+guardia.nftables -/-> guardia.evaluador
+guardia.nftables -/-> guardia.generador
+guardia.nftables -/-> guardia.politica
+guardia.nftables -/-> guardia.invariantes
+guardia.nftables -/-> guardia.eventos
+guardia.nftables -/-> guardia.informe
+guardia.nftables -/-> guardia.banco
+guardia.nftables -/-> guardia.banco_evaluador
+guardia.nftables -/-> guardia.transporte
+guardia.nftables -/-> guardia.cli
+
+guardia.actores -/-> guardia.nftables
+guardia.auditoria -/-> guardia.nftables
+guardia.politica -/-> guardia.nftables
+guardia.invariantes -/-> guardia.nftables
+guardia.eventos -/-> guardia.nftables
+guardia.motor -/-> guardia.nftables
+guardia.aplicador -/-> guardia.nftables
+guardia.kill_switch -/-> guardia.nftables
+guardia.crisol -/-> guardia.nftables
+guardia.despliegue -/-> guardia.nftables
+guardia.triaje -/-> guardia.nftables
+guardia.evaluador -/-> guardia.nftables
+guardia.generador -/-> guardia.nftables
+guardia.transporte -/-> guardia.nftables
+guardia.informe -/-> guardia.nftables
+guardia.banco -/-> guardia.nftables
+guardia.banco_evaluador -/-> guardia.nftables

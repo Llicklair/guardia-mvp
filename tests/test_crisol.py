@@ -82,7 +82,7 @@ def test_la_propuesta_correcta_pasa_los_cuatro_gates(crisol):
     assert veredicto.aplicable
 
 
-def test_gate_0_con_la_capa_congelada_no_se_forja(tmp_path, benigno, incidente):
+def test_gate_0_con_la_capa_congelada_no_se_evalua(tmp_path, benigno, incidente):
     interruptor = Interruptor(tmp_path / "control")
     interruptor.congelar(Actor.HUMANO, "incidente")
     crisol = Crisol(interruptor, Aplicador(tmp_path / "s.json"), benigno, incidente)
@@ -176,7 +176,7 @@ def test_gate_replay_no_soportado_para_deteccion(crisol):
     assert veredicto.gate == "gate-replay-no-soportado"
 
 
-def test_la_forja_deja_el_sandbox_limpio(crisol):
+def test_el_crisol_deja_el_sandbox_limpio(crisol):
     """Tras evaluar (pase o falle), el estado del sandbox vuelve a vacio: el gate 4
     aplica y revierte, no deja residuo."""
     crisol.evaluar(_corta_c2())
@@ -188,10 +188,10 @@ def test_cada_veredicto_queda_en_la_auditoria(crisol):
     crisol.evaluar(_corta_c2())
 
     eventos = [e.evento for e in crisol.interruptor.auditoria.leer()]
-    assert "forja_veredicto" in eventos
+    assert "crisol_veredicto" in eventos
 
 
-def test_la_cadena_de_auditoria_sigue_intacta_tras_forjar(crisol):
+def test_la_cadena_de_auditoria_sigue_intacta_tras_el_crisol(crisol):
     crisol.evaluar(_corta_c2())
 
     assert crisol.interruptor.auditoria.verificar().intacta

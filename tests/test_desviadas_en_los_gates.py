@@ -32,7 +32,7 @@ BENIGNO = cargar(str(RAIZ / "corpus" / "eventos" / "benigno.jsonl"))
 INCIDENTE = cargar(str(RAIZ / "corpus" / "eventos" / "incidente-0001.jsonl"))
 
 
-def _forja_operativa(directorio: Path) -> Crisol:
+def _crisol_operativo(directorio: Path) -> Crisol:
     directorio.mkdir(parents=True, exist_ok=True)
     interruptor = Interruptor(str(directorio))
     interruptor.descongelar(Actor.HUMANO, "test: capa operativa para medir los gates 1-4")
@@ -47,14 +47,14 @@ def _forja_operativa(directorio: Path) -> Crisol:
 def test_ninguna_desviada_pasa_los_gates(tmp_path):
     """La tesis: aunque el modelo proponga lo que el atacante quería, T3 no lo aplica."""
     for i, caso in enumerate(CASOS):
-        veredicto = _forja_operativa(tmp_path / f"des-{i}").evaluar(caso.desviada)
+        veredicto = _crisol_operativo(tmp_path / f"des-{i}").evaluar(caso.desviada)
         assert not veredicto.aplicable, f"{caso.incidente}: la desviada pasó ({veredicto.gate})"
 
 
 def test_la_correcta_si_pasa_los_gates(tmp_path):
     """El control: la contención correcta del C2 pasa los cuatro gates. Si esto fallara,
     el sistema no contendría ni el ataque real, y el 'no' de arriba no significaría nada."""
-    veredicto = _forja_operativa(tmp_path / "corr").evaluar(CORRECTA)
+    veredicto = _crisol_operativo(tmp_path / "corr").evaluar(CORRECTA)
     assert veredicto.aplicable, f"la correcta murió en {veredicto.gate}: {veredicto.resultado.name}"
 
 

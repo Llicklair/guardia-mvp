@@ -16,12 +16,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from . import informe as informe_html
+from . import nftables
 from .actores import Actor, SinAutoridad
 from .aplicador import Aplicador
 from .banco import Banco
 from .banco_evaluador import BancoEvaluador
 from .crisol import Crisol, Resultado
-from .despliegue import Despliegue, Estado
+from .despliegue import NOMBRE_PRODUCCION, Despliegue, Estado
 from .evaluador import EvaluadorAdversarial
 from .eventos import cargar
 from .generador import ENCARGOS, GeneradorCiego, Rechazo, cargar_base
@@ -129,6 +130,30 @@ def _cmd_informe(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_enforcement(args: argparse.Namespace) -> int:
+    """Traduce la politica activa a reglas nftables y, con --aplicar, las enforca.
+
+    Cierra la correlacion propuesta -> ejecucion: lo que se ve aqui es lo que el kernel
+    va a cortar. Por defecto DRY-RUN: imprime el ruleset y no toca el sistema. Enforcar de
+    verdad exige --aplicar (y Linux con nft + privilegios); es a proposito que lo barato
+    salga sin banderas y lo que toca el sistema se pida a mano."""
+    ruta = (
+        Path(args.politica)
+        if args.politica
+        else Path(args.control) / "despliegue" / NOMBRE_PRODUCCION
+    )
+    politicas = Aplicador(ruta).activas()
+    resultado = nftables.aplicar(politicas, dry_run=not args.aplicar)
+    print(resultado.reglas)
+    for saltada in resultado.saltadas:
+        print(f"# saltada: {saltada}", file=sys.stderr)
+    if not politicas:
+        print("# (no hay politica activa: ruleset vacio)")
+    print(f"# {resultado.motivo}")
+    # dry-run siempre sale 0; con --aplicar, no-cero si el enforcement real fallo.
+    return 0 if resultado.aplicado or not args.aplicar else 7
+
+
 def _cmd_validar(args: argparse.Namespace) -> int:
     """Parsea una propuesta contra la gramatica y la contrasta con los invariantes.
 
@@ -152,7 +177,7 @@ def _cmd_validar(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_forjar(args: argparse.Namespace) -> int:
+def _cmd_crisol(args: argparse.Namespace) -> int:
     """Corre la propuesta por los cuatro gates de la regla 6. No aplica a produccion:
     trabaja sobre un sandbox y deja un veredicto. Sin PASS, nada se aplica."""
     texto = Path(args.fichero).read_text(encoding="utf-8") if args.fichero else sys.stdin.read()
@@ -573,6 +598,23 @@ def construir_parser() -> argparse.ArgumentParser:
     )
     informe.set_defaults(func=_cmd_informe)
 
+    enforcement = sub.add_parser(
+        "enforcement",
+        help="traduce la politica activa a reglas nftables (dry-run por defecto)",
+    )
+    enforcement.add_argument(
+        "--politica",
+        default=None,
+        help="politica activa a enforcar (por defecto <control>/despliegue/politica-activa.json)",
+    )
+    enforcement.add_argument(
+        "--aplicar",
+        action="store_true",
+        help="enforca de verdad con 'nft -f -' (necesita Linux + nftables + privilegios); "
+        "sin esto solo imprime el ruleset y no toca el sistema",
+    )
+    enforcement.set_defaults(func=_cmd_enforcement)
+
     validar = sub.add_parser("validar", help="valida una propuesta contra gramatica e invariantes")
     validar.add_argument("fichero", nargs="?", help="JSON de la propuesta (por defecto, stdin)")
     validar.set_defaults(func=_cmd_validar)
@@ -585,7 +627,7 @@ def construir_parser() -> argparse.ArgumentParser:
     crisol.add_argument(
         "--incidente", default=str(INCIDENTE_POR_DEFECTO), help="repro del incidente (JSONL)"
     )
-    crisol.set_defaults(func=_cmd_forjar)
+    crisol.set_defaults(func=_cmd_crisol)
 
     desplegar = sub.add_parser(
         "desplegar", help="pasa por el crisol + aplica en canary con dead-man's switch"

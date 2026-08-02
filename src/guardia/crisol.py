@@ -143,7 +143,7 @@ class Crisol:
 
     def _registrar(self, propuesta: Propuesta, veredicto: Veredicto) -> None:
         self.interruptor.auditoria.registrar(
-            "forja_veredicto",
+            "crisol_veredicto",
             "automata",
             propuesta=propuesta.id,
             resultado=veredicto.resultado.value,
