@@ -196,12 +196,12 @@ def test_paralisis_queda_fuera_no_hay_propuesta_que_evaluar():
 
 
 def test_el_banco_del_evaluador_no_alcanza_lo_que_aplica():
-    """Medir no es aplicar: si este banco pudiera importar la forja o el despliegue, la
+    """Medir no es aplicar: si este banco pudiera importar el crisol o el despliegue, la
     senal advisory tendria un camino al veredicto. Las fronteras lo prohiben; aqui queda
     la razon escrita."""
     import guardia.banco_evaluador as modulo
 
-    assert not hasattr(modulo, "Forja")
+    assert not hasattr(modulo, "Crisol")
     assert not hasattr(modulo, "Despliegue")
     assert not hasattr(modulo, "Aplicador")
 

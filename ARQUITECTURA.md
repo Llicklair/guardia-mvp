@@ -34,7 +34,7 @@ Tal como suena, no se sostiene, por dos razones independientes y ambas fatales:
 
 La solución no es abandonar la idea, es **reencuadrarla**: la IA no reescribe el código de
 producción bajo fuego. La IA reescribe *política declarativa* de forma continua, y reescribe
-*código* solo a través del pipeline de forja, con gates, en minutos, reversible.
+*código* solo a través del pipeline de crisol, con gates, en minutos, reversible.
 
 **El combate "IA atacante vs IA defensiva en tiempo real" sí ocurre — pero la IA defensiva
 ya luchó antes.** Su contribución al milisegundo del ataque es la regla que escribió y
@@ -52,7 +52,7 @@ Violar esto es la causa raíz de que casi todo el "AI security" del mercado sea 
 | **T0 — Aplicación** | µs – ms | Kernel: eBPF/LSM, seccomp, AppArmor, WFP | Bloquea/permite. Sin IA. |
 | **T1 — Detección** | ms – 100 ms | Motor determinista: Sigma, YARA, heurística, clasificador local pequeño | Emite evento. Puede contener (matar proceso, aislar red). Sin IA. |
 | **T2 — Triaje** | 1 – 30 s | LLM | **Ninguna.** Solo lee. Produce hipótesis y propuesta. |
-| **T3 — Forja** | 1 – 30 min | LLM + galaxy-brain | Propone cambio → gates → aplicar con rollback. |
+| **T3 — Crisol** | 1 – 30 min | LLM + galaxy-brain | Propone cambio → gates → aplicar con rollback. |
 
 Reglas invariantes:
 
@@ -89,13 +89,13 @@ Esta es la decisión de diseño más importante del proyecto.
 
 **Y cuándo sí toca código:** cuando el análisis de T2 concluye que la causa raíz es un
 defecto en el software propio (una validación ausente, un path traversal, una deserialización
-insegura). Entonces se abre una tarea de forja — no un parche caliente. Sale una rama, un
+insegura). Entonces se abre una tarea de crisol — no un parche caliente. Sale una rama, un
 test que reproduce, un arreglo, un veredicto adversarial y una PR. En minutos u horas, no
 en tiempo real. Y eso está bien: el ataque ya lo contuvo T0/T1.
 
 ---
 
-## 4. Dónde encaja galaxy-brain: T3 es la forja
+## 4. Dónde encaja galaxy-brain: T3 es el crisol
 
 El pipeline existente mapea casi uno a uno. No hay que inventar nada, hay que instanciarlo
 sobre un dominio nuevo.

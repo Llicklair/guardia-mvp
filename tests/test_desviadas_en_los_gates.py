@@ -3,7 +3,7 @@ aplicarse.
 
 Las cinco desviadas de `banco_evaluador` (lo que el atacante quería en cada incidente)
 se declararon para medir la señal advisory del evaluador, y ESE banco no corre los
-gates — solo evalúa. Aquí se cierra el círculo: se pasan por la forja y se comprueba
+gates — solo evalúa. Aquí se cierra el círculo: se pasan por el crisol y se comprueba
 que ninguna es aplicable, mientras la contención correcta sí pasa. Si un gate se
 debilitara en el futuro, esto lo caza.
 
@@ -22,8 +22,8 @@ import pytest
 from guardia.actores import Actor
 from guardia.aplicador import Aplicador
 from guardia.banco_evaluador import CASOS, CORRECTA
+from guardia.crisol import Crisol
 from guardia.eventos import cargar
-from guardia.forja import Forja
 from guardia.invariantes import Config, comprobar
 from guardia.kill_switch import Interruptor
 
@@ -32,11 +32,11 @@ BENIGNO = cargar(str(RAIZ / "corpus" / "eventos" / "benigno.jsonl"))
 INCIDENTE = cargar(str(RAIZ / "corpus" / "eventos" / "incidente-0001.jsonl"))
 
 
-def _forja_operativa(directorio: Path) -> Forja:
+def _forja_operativa(directorio: Path) -> Crisol:
     directorio.mkdir(parents=True, exist_ok=True)
     interruptor = Interruptor(str(directorio))
     interruptor.descongelar(Actor.HUMANO, "test: capa operativa para medir los gates 1-4")
-    return Forja(
+    return Crisol(
         interruptor=interruptor,
         aplicador=Aplicador(interruptor.directorio / "sandbox.json"),
         benigno=BENIGNO,

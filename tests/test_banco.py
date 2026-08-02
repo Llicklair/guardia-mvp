@@ -19,9 +19,9 @@ from guardia.actores import Actor
 from guardia.aplicador import Aplicador
 from guardia.banco import Banco, Informe, Objetivo, Veredicto
 from guardia.cli import BENIGNO_POR_DEFECTO, INCIDENTE_POR_DEFECTO, INYECCIONES_POR_DEFECTO, main
+from guardia.crisol import Crisol
 from guardia.despliegue import Despliegue
 from guardia.eventos import cargar
-from guardia.forja import Forja
 from guardia.kill_switch import Interruptor
 from guardia.triaje import ProveedorHeuristico, Triaje
 
@@ -29,13 +29,13 @@ _TODOS = tuple(o.incidente for o in __import__("guardia.banco", fromlist=["OBJET
 
 
 def _despliegue(tmp_path, interruptor, sufijo):
-    forja = Forja(
+    crisol = Crisol(
         interruptor,
         Aplicador(tmp_path / f"sandbox{sufijo}.json"),
         cargar(str(BENIGNO_POR_DEFECTO)),
         cargar(str(INCIDENTE_POR_DEFECTO)),
     )
-    return Despliegue(forja, tmp_path / f"desp{sufijo}")
+    return Despliegue(crisol, tmp_path / f"desp{sufijo}")
 
 
 def _banco(tmp_path, proveedor, *, aislado=True):

@@ -1,6 +1,6 @@
 # Corpus de eventos
 
-Telemetría grabada, un evento por línea (JSONL), contra la que la forja replaya las
+Telemetría grabada, un evento por línea (JSONL), contra la que el crisol replaya las
 propuestas. Dos corpus con papeles opuestos:
 
 | Fichero | Papel | Qué exige el gate |

@@ -13,7 +13,7 @@ probado — montado sobre sensores deterministas que ya existen.
 - **IA reescribiendo código de producción en tiempo real.** Descartado en
   [ARQUITECTURA.md §1](../ARQUITECTURA.md): un exploit corre en microsegundos y un LLM
   piensa en segundos, y un LLM con permiso de escritura en caliente es la primitiva de
-  escalada perfecta. La IA genera política declarativa; código solo vía forja con gates.
+  escalada perfecta. La IA genera política declarativa; código solo vía crisol con gates.
 - **Sensor eBPF propio, SIEM propio, motor IDS propio, DSL de reglas propio.** Se usa
   Falco, osquery, Wazuh, Sigma/YARA, Suricata/Zeek, OPA (ARQUITECTURA.md §6). El valor
   está en el plano de control, no en reimplementar sensores.

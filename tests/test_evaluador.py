@@ -115,13 +115,13 @@ def test_las_lentes_preguntan_en_negativo():
 
 def test_el_evaluador_no_puede_alcanzar_el_que_aplica():
     """La regla 3 en el grafo, comprobada tambien desde el codigo: si el evaluador
-    pudiera importar la forja o el despliegue, su dictamen podria acabar decidiendo.
+    pudiera importar el crisol o el despliegue, su dictamen podria acabar decidiendo.
     Las fronteras lo prohiben (src/.gb-boundaries) y aqui queda la razon escrita."""
     import guardia.evaluador as modulo
 
     fuente = modulo.__doc__ or ""
     assert "advisory" in fuente.lower()
-    assert not hasattr(modulo, "Forja")
+    assert not hasattr(modulo, "Crisol")
     assert not hasattr(modulo, "Despliegue")
 
 

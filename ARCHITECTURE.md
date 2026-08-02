@@ -6,7 +6,7 @@ una vive en [ARQUITECTURA.md](ARQUITECTURA.md); aquí está la forma citable.
 
 1. **Cada mecanismo vive en el nivel cuyo presupuesto temporal cumple.**
    T0 (µs–ms, kernel) y T1 (ms–100 ms, motor determinista) no contienen IA. T2 (1–30 s,
-   LLM) solo lee. T3 (minutos, forja) es el único nivel que escribe cambios. Un
+   LLM) solo lee. T3 (minutos, crisol) es el único nivel que escribe cambios. Un
    mecanismo que no cabe en su presupuesto no entra en ese nivel.
 2. **Ningún nivel llama hacia arriba de forma bloqueante.** T1 nunca espera a T2. Con
    el LLM caído, lento o alucinando, T0/T1 protegen igual: la ausencia de IA degrada
@@ -19,7 +19,7 @@ una vive en [ARQUITECTURA.md](ARQUITECTURA.md); aquí está la forma citable.
    y se normaliza. La inyección de prompt es el canal de entrada esperado, no un edge case.
 5. **La IA produce política declarativa, no código de producción.** Reglas Sigma/YARA,
    perfiles seccomp/AppArmor, filtros de red, políticas OPA — versionadas y firmadas.
-   eBPF solo desde plantillas parametrizadas. Código solo vía forja (rama, repro, gates,
+   eBPF solo desde plantillas parametrizadas. Código solo vía crisol (rama, repro, gates,
    PR), nunca parche caliente.
 6. **Ningún cambio se aplica sin sus cuatro gates:** replay benigno sin disparos, replay
    malicioso con disparo, rollback ejecutado y verificado en sandbox, y canary antes de

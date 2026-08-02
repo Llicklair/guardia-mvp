@@ -110,7 +110,7 @@ una vez, no como banco de pruebas fiable. Se registra como negativo, no se maqui
 
 ## 2026-07-31 · Los cuatro gates de la regla 6, ¿rechazan lo que deben? — PASA
 
-**Montaje.** Forja determinista (`guardia forjar`) que corre una propuesta por los
+**Montaje.** Crisol determinista (`guardia crisol`) que corre una propuesta por los
 gates en orden: interruptor operativo → invariantes → replay benigno → replay malicioso
 → rollback probado. Corpus de eventos en [corpus/eventos/](../corpus/eventos/): benigno
 con una trampa (conexión interna legítima al puerto 4444, el mismo del C2) e incidente
@@ -125,10 +125,10 @@ con el repro de la shell inversa. Una propuesta escrita para fallar en cada gate
 - Bloquear una IP que no es la del C2: **REJECT** en gate-3-replay-malicioso, no cubre
   el repro.
 - Capa de IA congelada: **REJECT** en gate-0, ni se evalúa. El interruptor manda sobre
-  la forja.
+  el crisol.
 - Y la cadena de auditoría sigue intacta tras cada veredicto (cada uno queda registrado).
 
-**Prueba real del rollback (gate 4).** No es documentación: la forja aplica la propuesta
+**Prueba real del rollback (gate 4).** No es documentación: el crisol aplica la propuesta
 en un sandbox, revierte de verdad, y compara por hash que el estado vuelve exacto. El
 test `test_la_forja_deja_el_sandbox_limpio` confirma que tras evaluar —pase o falle— el
 estado activo vuelve a vacío. Un cambio cuyo rollback no restaura el hash exacto es
@@ -136,7 +136,7 @@ REJECT.
 
 **Límite de alcance, dicho de frente.** El motor de replay cubre `filtro_red` y
 `confinamiento` con matching determinista completo. **NO** cubre `regla_deteccion`: su
-banco es el motor de Falco (regla 9, no se reimplementa), así que la forja la marca
+banco es el motor de Falco (regla 9, no se reimplementa), así que el crisol la marca
 `gate-replay-no-soportado` → REJECT honesto en vez de un PASS que no significaría nada.
 Consecuencia práctica: hoy el ciclo completo se demuestra con el filtro de egress (cortar
 el C2), no con la regla de detección de Falco. Las dos son respuestas válidas al mismo
@@ -145,7 +145,7 @@ incidente; la detección espera a que el banco de Falco sea fiable (ver negativo
 ## 2026-07-31 · Aplicación real: canary, dead-man's switch y límite de tasa — PASA
 
 **Montaje.** La capa de despliegue (`guardia desplegar/confirmar/revisar`) cierra T3:
-un veredicto PASS de la forja se aplica a producción, pero nunca de golpe. Tres frenos
+un veredicto PASS del crisol se aplica a producción, pero nunca de golpe. Tres frenos
 deterministas de §5.5 (el modo de fallo *más probable* del sistema, según ARQUITECTURA:
 el defensor tumbándose a sí mismo). El reloj se inyecta para probar los plazos sin dormir.
 
@@ -224,7 +224,7 @@ real detrás de `GUARDIA_SMOKE_LLM` para que la suite jamás gaste cuota por acc
    Dos familias distintas de modelo detrás de la misma interfaz — la base del evaluador
    adversarial de la regla 10 ya existe.
 2. **Ciclo completo `responder --proveedor llm`**: Claude propone
-   `bloqueo-c2-203-0-113-7` (id suyo, IP del C2 correcta) → forja PASS en los cuatro
+   `bloqueo-c2-203-0-113-7` (id suyo, IP del C2 correcta) → crisol PASS en los cuatro
    gates → canary aplicado. La auditoría deja la misma cadena que con el heurístico:
    `humano` descongela, `ia` propone, `automata` veredicto, `automata` canary. **Primera
    vez que el actor `ia` del log es una inferencia real y no un doble.**
@@ -633,7 +633,7 @@ esta página que era un **suelo** y que el corpus que valdría lo escribe otro m
 **En qué consiste la ceguera, que es lo único que lo hace valioso.** No es una promesa
 del prompt. `generador.py` importa `eventos` (el formato de cable, que el atacante ve
 porque es la telemetría que él mismo produce) y `transporte` (el canal). **No importa
-`politica`, ni `invariantes`, ni `forja`, ni `triaje`, ni `banco`** — no puede filtrar lo
+`politica`, ni `invariantes`, ni `crisol`, ni `triaje`, ni `banco`** — no puede filtrar lo
 que no tiene delante. 29 reglas nuevas en `src/.gb-boundaries` (de 106 a 135) lo
 convierten en un hecho del grafo. Verificado a la contra, que es lo único que prueba que un gate no es decorado:
 con un `from .politica import Propuesta` de sonda, `gb graph src --gate` sale 1 y

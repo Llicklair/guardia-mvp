@@ -14,9 +14,9 @@ from guardia.actores import Actor
 from guardia.aplicador import Aplicador
 from guardia.auditoria import Auditoria
 from guardia.cli import construir_parser
+from guardia.crisol import Crisol
 from guardia.despliegue import Despliegue, Estado
 from guardia.eventos import Corpus, EventoProceso, EventoRed
-from guardia.forja import Forja
 from guardia.kill_switch import Interruptor
 from guardia.triaje import (
     ContextoIncidente,
@@ -116,8 +116,8 @@ def test_el_veneno_es_valido_en_t2_pero_lo_para_t3(incidente, benigno, tmp_path)
 
     interruptor = Interruptor(tmp_path / "control")
     interruptor.descongelar(Actor.HUMANO, "arranque")
-    forja = Forja(interruptor, Aplicador(tmp_path / "sb.json"), benigno, incidente)
-    despliegue = Despliegue(forja, tmp_path / "desp")
+    crisol = Crisol(interruptor, Aplicador(tmp_path / "sb.json"), benigno, incidente)
+    despliegue = Despliegue(crisol, tmp_path / "desp")
 
     despacho = despliegue.desplegar(propuesta)
 
@@ -126,12 +126,12 @@ def test_el_veneno_es_valido_en_t2_pero_lo_para_t3(incidente, benigno, tmp_path)
 
 
 def test_ciclo_completo_incidente_a_canary(incidente, benigno, tmp_path):
-    """El happy path end-to-end: incidente → triaje (heuristico) → forja → canary."""
+    """El happy path end-to-end: incidente → triaje (heuristico) → crisol → canary."""
     triaje = Triaje(ProveedorHeuristico(), _auditoria(tmp_path))
     interruptor = Interruptor(tmp_path / "control")
     interruptor.descongelar(Actor.HUMANO, "arranque")
     despliegue = Despliegue(
-        Forja(interruptor, Aplicador(tmp_path / "sb.json"), benigno, incidente), tmp_path / "desp"
+        Crisol(interruptor, Aplicador(tmp_path / "sb.json"), benigno, incidente), tmp_path / "desp"
     )
 
     propuesta = triaje.proponer(incidente)

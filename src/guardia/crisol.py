@@ -1,4 +1,4 @@
-"""La forja: los cuatro gates de la regla 6. El unico camino para aplicar politica.
+"""El crisol: los cuatro gates de la regla 6. El unico camino para aplicar politica.
 
 Un cambio se aplica si y solo si pasa, en orden y todos:
 
@@ -9,11 +9,11 @@ Un cambio se aplica si y solo si pasa, en orden y todos:
   Gate 4 — Rollback probado. Se aplica en sandbox, se revierte de verdad, y si el
            estado no vuelve al hash exacto → REJECT.
 
-El resultado de un gate nunca lo decide un LLM. La forja es determinista de principio
+El resultado de un gate nunca lo decide un LLM. El crisol es determinista de principio
 a fin: es la parte del sistema en la que el atacante mas querria colar algo, asi que
 es la que menos margen de interpretacion tiene.
 
-Aplicar de verdad (canary incluido) es el paso siguiente; esta forja produce el
+Aplicar de verdad (canary incluido) es el paso siguiente; este crisol produce el
 VEREDICTO y deja el estado del sandbox limpio. Sin veredicto PASS, nada se aplica.
 """
 
@@ -56,7 +56,7 @@ class Veredicto:
 
 
 @dataclass(frozen=True)
-class Forja:
+class Crisol:
     """Orquesta los gates sobre un sandbox. No toca el estado de produccion."""
 
     interruptor: Interruptor

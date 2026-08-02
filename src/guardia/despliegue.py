@@ -31,7 +31,7 @@ from pathlib import Path
 
 from .actores import AUTORIDAD_PARA_DESCONGELAR, Actor, SinAutoridad
 from .aplicador import Aplicador, Punto
-from .forja import Forja, Veredicto
+from .crisol import Crisol, Veredicto
 from .politica import Propuesta
 
 NOMBRE_ESTADO = "despliegue.json"
@@ -80,7 +80,7 @@ class Canario:
 
 @dataclass(frozen=True)
 class Despacho:
-    """El resultado de intentar desplegar. `veredicto` viene de la forja si llego a ella."""
+    """El resultado de intentar desplegar. `veredicto` viene del crisol si llego a el."""
 
     estado: Estado
     propuesta_id: str
@@ -97,26 +97,26 @@ class Despliegue:
 
     def __init__(
         self,
-        forja: Forja,
+        crisol: Crisol,
         directorio: Path | str,
         config: Config | None = None,
         ahora: Callable[[], float] = time.time,
     ) -> None:
-        self.forja = forja
+        self.crisol = crisol
         self.config = config or Config()
         self.ahora = ahora
         self.directorio = Path(directorio)
         self.directorio.mkdir(parents=True, exist_ok=True)
         self.produccion = Aplicador(self.directorio / NOMBRE_PRODUCCION)
         self.ruta_estado = self.directorio / NOMBRE_ESTADO
-        self.auditoria = forja.interruptor.auditoria
+        self.auditoria = crisol.interruptor.auditoria
 
     # -- despliegue ---------------------------------------------------------
 
     def desplegar(self, propuesta: Propuesta) -> Despacho:
-        """Forja → tasa → aplica en canary. El orden importa: los gates primero (un
+        """Crisol → tasa → aplica en canary. El orden importa: los gates primero (un
         REJECT no consume cupo de tasa), la tasa despues (limita cambios APLICADOS)."""
-        veredicto = self.forja.evaluar(propuesta)
+        veredicto = self.crisol.evaluar(propuesta)
         if not veredicto.aplicable:
             return self._despacho(Estado.RECHAZADO_GATE, propuesta.id, str(veredicto), veredicto)
 

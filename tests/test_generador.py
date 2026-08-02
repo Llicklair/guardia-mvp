@@ -115,7 +115,7 @@ def test_el_prompt_no_menciona_nada_del_sistema(base):
         "invariante",
         "gate",
         "perfil",
-        "forja",
+        "crisol",
     ):
         assert interno not in prompt.lower(), f"el prompt filtra '{interno}': la ceguera se rompio"
 

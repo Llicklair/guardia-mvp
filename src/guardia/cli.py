@@ -20,10 +20,10 @@ from .actores import Actor, SinAutoridad
 from .aplicador import Aplicador
 from .banco import Banco
 from .banco_evaluador import BancoEvaluador
+from .crisol import Crisol, Resultado
 from .despliegue import Despliegue, Estado
 from .evaluador import EvaluadorAdversarial
 from .eventos import cargar
-from .forja import Forja, Resultado
 from .generador import ENCARGOS, GeneradorCiego, Rechazo, cargar_base
 from .invariantes import Config, comprobar
 from .kill_switch import Interruptor
@@ -148,7 +148,7 @@ def _cmd_validar(args: argparse.Namespace) -> int:
             print(f"  {violacion}", file=sys.stderr)
         return 5
     print(f"propuesta '{propuesta.id}' ({propuesta.tipo.value}): gramatica OK, invariantes OK")
-    print("para saber si es APLICABLE, pasala por 'guardia forjar' (los cuatro gates).")
+    print("para saber si es APLICABLE, pasala por 'guardia crisol' (los cuatro gates).")
     return 0
 
 
@@ -163,33 +163,33 @@ def _cmd_forjar(args: argparse.Namespace) -> int:
         return 2
 
     interruptor = _interruptor(args)
-    forja = Forja(
+    crisol = Crisol(
         interruptor=interruptor,
         aplicador=Aplicador(interruptor.directorio / "sandbox-politica.json"),
         benigno=cargar(args.benigno),
         incidente=cargar(args.incidente),
     )
-    veredicto = forja.evaluar(propuesta)
+    veredicto = crisol.evaluar(propuesta)
     destino = sys.stdout if veredicto.aplicable else sys.stderr
     print(f"propuesta '{propuesta.id}': {veredicto}", file=destino)
     return {Resultado.PASS: 0, Resultado.REJECT: 6, Resultado.BLOCKER: 5}[veredicto.resultado]
 
 
 def _despliegue(args: argparse.Namespace, sufijo: str = "") -> Despliegue:
-    # confirmar/revisar no forjan, asi que no declaran --benigno/--incidente: getattr
+    # confirmar/revisar no pasan por el crisol, asi que no declaran --benigno/--incidente: getattr
     # con el default cubre esos casos sin obligar a cada subcomando a repetir los flags.
     interruptor = _interruptor(args)
-    forja = Forja(
+    crisol = Crisol(
         interruptor=interruptor,
         aplicador=Aplicador(interruptor.directorio / f"sandbox-politica{sufijo}.json"),
         benigno=cargar(getattr(args, "benigno", str(BENIGNO_POR_DEFECTO))),
         incidente=cargar(getattr(args, "incidente", str(INCIDENTE_POR_DEFECTO))),
     )
-    return Despliegue(forja, interruptor.directorio / f"despliegue{sufijo}")
+    return Despliegue(crisol, interruptor.directorio / f"despliegue{sufijo}")
 
 
 def _cmd_desplegar(args: argparse.Namespace) -> int:
-    """Forja + aplicacion real: si pasa los gates y no excede la tasa, se aplica en
+    """Crisol + aplicacion real: si pasa los gates y no excede la tasa, se aplica en
     canary con dead-man's switch. Cierra el ciclo T3."""
     texto = Path(args.fichero).read_text(encoding="utf-8") if args.fichero else sys.stdin.read()
     try:
@@ -577,17 +577,19 @@ def construir_parser() -> argparse.ArgumentParser:
     validar.add_argument("fichero", nargs="?", help="JSON de la propuesta (por defecto, stdin)")
     validar.set_defaults(func=_cmd_validar)
 
-    forjar = sub.add_parser("forjar", help="corre una propuesta por los cuatro gates (regla 6)")
-    forjar.add_argument("fichero", nargs="?", help="JSON de la propuesta (por defecto, stdin)")
-    forjar.add_argument(
+    crisol = sub.add_parser("crisol", help="corre una propuesta por los cuatro gates (regla 6)")
+    crisol.add_argument("fichero", nargs="?", help="JSON de la propuesta (por defecto, stdin)")
+    crisol.add_argument(
         "--benigno", default=str(BENIGNO_POR_DEFECTO), help="corpus benigno (JSONL)"
     )
-    forjar.add_argument(
+    crisol.add_argument(
         "--incidente", default=str(INCIDENTE_POR_DEFECTO), help="repro del incidente (JSONL)"
     )
-    forjar.set_defaults(func=_cmd_forjar)
+    crisol.set_defaults(func=_cmd_forjar)
 
-    desplegar = sub.add_parser("desplegar", help="forja + aplica en canary con dead-man's switch")
+    desplegar = sub.add_parser(
+        "desplegar", help="pasa por el crisol + aplica en canary con dead-man's switch"
+    )
     desplegar.add_argument("fichero", nargs="?", help="JSON de la propuesta (por defecto, stdin)")
     desplegar.add_argument("--benigno", default=str(BENIGNO_POR_DEFECTO), help="corpus benigno")
     desplegar.add_argument(

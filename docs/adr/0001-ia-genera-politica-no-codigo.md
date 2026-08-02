@@ -16,7 +16,7 @@ escalada de privilegios.
 La IA produce **política declarativa** (Sigma, YARA, seccomp/AppArmor, nftables,
 OPA/Rego; eBPF solo desde plantillas parametrizadas), versionada y firmada, validada
 por gates antes de aplicarse. **Código** solo cuando la causa raíz es un defecto del
-software propio, y solo vía la forja de galaxy-brain: rama, repro, gates, veredicto
+software propio, y solo vía el pipeline de galaxy-brain: rama, repro, gates, veredicto
 adversarial, PR — en minutos u horas, nunca en caliente.
 
 ## Consecuencias

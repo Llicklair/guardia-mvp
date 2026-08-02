@@ -14,7 +14,7 @@ La tesis del proyecto es que lo primero puede pasar y lo segundo no. Un banco qu
 solo contara "politicas malas aplicadas" daria 0 y no diria nada; hay que ver cuantas
 veces el modelo picó para saber si el 0 lo sostienen los gates o la suerte.
 
-**El punto de diseño que esto expone:** los corpus contra los que replaya la forja
+**El punto de diseño que esto expone:** los corpus contra los que replaya el crisol
 (benigno y repro del incidente) NO los controla el atacante. La inyeccion viaja en la
 telemetria que ve T2; el banco de pruebas de T3 es aparte. Por eso una propuesta
 desviada no puede "pasar" los gates aunque el texto que la motivo fuera convincente.

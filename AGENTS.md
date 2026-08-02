@@ -20,13 +20,13 @@ python -m ruff check src tests && python -m ruff format --check src tests
 gb graph src --gate           # ciclos de imports + fronteras (src/.gb-boundaries)
 gb floor                      # el suelo del proyecto: qué falta antes de construir
 python -m guardia.cli --help  # la linea de mando (PYTHONPATH=src)
-python -m guardia.cli forjar <prop.json>   # corre una propuesta por los 4 gates (regla 6)
+python -m guardia.cli crisol <prop.json>   # corre una propuesta por los 4 gates (regla 6)
 ```
 
 La CLI `guardia`: `estado` / `congelar` / `descongelar` (interruptor de emergencia),
 `auditoria [--verificar]` (log encadenado), `validar` (gramática + invariantes),
-`forjar` (los cuatro gates → PASS/REJECT/BLOCKER, exit 0/6/5) sobre sandbox, y el ciclo
-de aplicación real: `desplegar` (forja + canary con dead-man's switch + límite de tasa,
+`crisol` (los cuatro gates → PASS/REJECT/BLOCKER, exit 0/6/5) sobre sandbox, y el ciclo
+de aplicación real: `desplegar` (crisol + canary con dead-man's switch + límite de tasa,
 exit 0/6/7), `confirmar <id>` (marca un canary estable, solo humano) y `revisar` (el
 dead-man's switch: revierte los canarios expirados; lo llama el automata) y el ciclo
 completo `responder` (incidente → triaje T2 → despliegue T3). Sin PASS, nada se aplica;
@@ -58,14 +58,14 @@ distinta a la del generador — regla 10.
 ## Arquitectura
 
 Cuatro niveles por presupuesto temporal: T0 kernel (µs, sin IA) → T1 detección
-determinista (ms, sin IA) → T2 triaje LLM (segundos, solo lee) → T3 forja
+determinista (ms, sin IA) → T2 triaje LLM (segundos, solo lee) → T3 crisol
 galaxy-brain (minutos, único nivel que escribe, con gates y rollback).
 Detalle completo: [ARQUITECTURA.md §2](ARQUITECTURA.md).
 
 ## Convenciones de commit y PR
 
 - Commits en español, imperativo, prefijo de área: `docs:`, `t0:`, `t1:`, `t2:`,
-  `forja:`, `infra:`. Una decisión de diseño en el commit = referencia a regla o ADR.
+  `crisol:`, `infra:`. Una decisión de diseño en el commit = referencia a regla o ADR.
 - Nunca auto-merge: un agente commitea en rama y deja PR; el merge lo dirige Marcos.
 - Un PR que toque política de seguridad o los invariantes (reglas 7–8 de
   ARCHITECTURE.md) no entra sin ADR.

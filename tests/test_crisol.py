@@ -1,4 +1,4 @@
-"""Los cuatro gates de la regla 6. El test que decide si la forja gatea o es teatro.
+"""Los cuatro gates de la regla 6. El test que decide si el crisol gatea o es teatro.
 
 Cada gate se prueba con una propuesta escrita para fallar EN ESE gate y pasar los
 anteriores, mas el caso que pasa los cuatro. Si cualquiera de estos dejara de
@@ -11,8 +11,8 @@ import pytest
 
 from guardia.actores import Actor
 from guardia.aplicador import Aplicador
+from guardia.crisol import Crisol, Resultado
 from guardia.eventos import Corpus, EventoProceso, EventoRed
-from guardia.forja import Forja, Resultado
 from guardia.kill_switch import Interruptor
 from guardia.politica import desde_dict
 
@@ -46,10 +46,10 @@ def incidente():
 
 
 @pytest.fixture
-def forja(tmp_path, benigno, incidente):
+def crisol(tmp_path, benigno, incidente):
     interruptor = Interruptor(tmp_path / "control")
     interruptor.descongelar(Actor.HUMANO, "arranque del test")
-    return Forja(
+    return Crisol(
         interruptor=interruptor,
         aplicador=Aplicador(tmp_path / "sandbox.json"),
         benigno=benigno,
@@ -75,8 +75,8 @@ def _corta_c2(id="ok"):
     )
 
 
-def test_la_propuesta_correcta_pasa_los_cuatro_gates(forja):
-    veredicto = forja.evaluar(_corta_c2())
+def test_la_propuesta_correcta_pasa_los_cuatro_gates(crisol):
+    veredicto = crisol.evaluar(_corta_c2())
 
     assert veredicto.resultado is Resultado.PASS
     assert veredicto.aplicable
@@ -85,15 +85,15 @@ def test_la_propuesta_correcta_pasa_los_cuatro_gates(forja):
 def test_gate_0_con_la_capa_congelada_no_se_forja(tmp_path, benigno, incidente):
     interruptor = Interruptor(tmp_path / "control")
     interruptor.congelar(Actor.HUMANO, "incidente")
-    forja = Forja(interruptor, Aplicador(tmp_path / "s.json"), benigno, incidente)
+    crisol = Crisol(interruptor, Aplicador(tmp_path / "s.json"), benigno, incidente)
 
-    veredicto = forja.evaluar(_corta_c2())
+    veredicto = crisol.evaluar(_corta_c2())
 
     assert veredicto.resultado is Resultado.REJECT
     assert veredicto.gate == "gate-0-interruptor"
 
 
-def test_gate_1_invariante_es_blocker(forja):
+def test_gate_1_invariante_es_blocker(crisol):
     """Bloquear el SSH del admin: no llega ni al replay."""
     lockout = desde_dict(
         {
@@ -109,13 +109,13 @@ def test_gate_1_invariante_es_blocker(forja):
         }
     )
 
-    veredicto = forja.evaluar(lockout)
+    veredicto = crisol.evaluar(lockout)
 
     assert veredicto.resultado is Resultado.BLOCKER
     assert veredicto.gate == "gate-1-invariantes"
 
 
-def test_gate_2_falso_positivo_sobre_benigno(forja):
+def test_gate_2_falso_positivo_sobre_benigno(crisol):
     """Bloquear TODO el 4444 saliente pilla el servicio interno legitimo del benigno."""
     ancho = desde_dict(
         {
@@ -131,13 +131,13 @@ def test_gate_2_falso_positivo_sobre_benigno(forja):
         }
     )
 
-    veredicto = forja.evaluar(ancho)
+    veredicto = crisol.evaluar(ancho)
 
     assert veredicto.resultado is Resultado.REJECT
     assert veredicto.gate == "gate-2-replay-benigno"
 
 
-def test_gate_3_no_dispara_sobre_el_incidente(forja):
+def test_gate_3_no_dispara_sobre_el_incidente(crisol):
     """Una regla que no cubre el repro: bloquea una IP que no es la del C2."""
     fallona = desde_dict(
         {
@@ -153,13 +153,13 @@ def test_gate_3_no_dispara_sobre_el_incidente(forja):
         }
     )
 
-    veredicto = forja.evaluar(fallona)
+    veredicto = crisol.evaluar(fallona)
 
     assert veredicto.resultado is Resultado.REJECT
     assert veredicto.gate == "gate-3-replay-malicioso"
 
 
-def test_gate_replay_no_soportado_para_deteccion(forja):
+def test_gate_replay_no_soportado_para_deteccion(crisol):
     """Una regla_deteccion no se puede replayar aqui: REJECT honesto, no falso PASS."""
     regla = desde_dict(
         {
@@ -170,28 +170,28 @@ def test_gate_replay_no_soportado_para_deteccion(forja):
         }
     )
 
-    veredicto = forja.evaluar(regla)
+    veredicto = crisol.evaluar(regla)
 
     assert veredicto.resultado is Resultado.REJECT
     assert veredicto.gate == "gate-replay-no-soportado"
 
 
-def test_la_forja_deja_el_sandbox_limpio(forja):
+def test_la_forja_deja_el_sandbox_limpio(crisol):
     """Tras evaluar (pase o falle), el estado del sandbox vuelve a vacio: el gate 4
     aplica y revierte, no deja residuo."""
-    forja.evaluar(_corta_c2())
+    crisol.evaluar(_corta_c2())
 
-    assert forja.aplicador.activas() == []
+    assert crisol.aplicador.activas() == []
 
 
-def test_cada_veredicto_queda_en_la_auditoria(forja):
-    forja.evaluar(_corta_c2())
+def test_cada_veredicto_queda_en_la_auditoria(crisol):
+    crisol.evaluar(_corta_c2())
 
-    eventos = [e.evento for e in forja.interruptor.auditoria.leer()]
+    eventos = [e.evento for e in crisol.interruptor.auditoria.leer()]
     assert "forja_veredicto" in eventos
 
 
-def test_la_cadena_de_auditoria_sigue_intacta_tras_forjar(forja):
-    forja.evaluar(_corta_c2())
+def test_la_cadena_de_auditoria_sigue_intacta_tras_forjar(crisol):
+    crisol.evaluar(_corta_c2())
 
-    assert forja.interruptor.auditoria.verificar().intacta
+    assert crisol.interruptor.auditoria.verificar().intacta

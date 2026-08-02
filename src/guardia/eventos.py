@@ -5,7 +5,7 @@ controla el atacante. Aqui se parsea a una forma cerrada y se trunca; nada de es
 es una instruccion, y ningun campo se ejecuta.
 
 Un corpus es un JSONL: una linea por evento. El benigno es actividad normal grabada;
-el de incidente es el repro de un ataque. Los gates de replay (forja) corren la
+el de incidente es el repro de un ataque. Los gates de replay (crisol) corren la
 propuesta contra ambos.
 """
 

@@ -11,7 +11,7 @@ que se le da el ataque real y el objetivo en lenguaje llano, y nada mas.
 No es una promesa del prompt («no mires la gramatica»), es una propiedad estructural: este
 modulo importa `eventos` (el formato de cable, que el atacante ve porque es la telemetria
 que el mismo produce) y `transporte` (el canal). **No importa `politica`, ni `invariantes`,
-ni `forja`, ni `triaje`, ni `banco`** — asi que no puede filtrar en el prompt lo que no
+ni `crisol`, ni `triaje`, ni `banco`** — asi que no puede filtrar en el prompt lo que no
 tiene delante. Las fronteras de `src/.gb-boundaries` lo comprueban en cada gate. Es la
 misma jugada que el evaluador adversarial del ADR 0007, que vale por lo que NO ve.
 

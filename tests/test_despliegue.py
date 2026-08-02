@@ -11,9 +11,9 @@ import pytest
 
 from guardia.actores import Actor, SinAutoridad
 from guardia.aplicador import Aplicador
+from guardia.crisol import Crisol
 from guardia.despliegue import Config, Despliegue, Estado
 from guardia.eventos import Corpus, EventoRed
-from guardia.forja import Forja
 from guardia.kill_switch import Interruptor
 from guardia.politica import desde_dict
 
@@ -34,14 +34,14 @@ def reloj():
 def despliegue(tmp_path, reloj):
     interruptor = Interruptor(tmp_path / "control")
     interruptor.descongelar(Actor.HUMANO, "arranque")
-    forja = Forja(
+    crisol = Crisol(
         interruptor=interruptor,
         aplicador=Aplicador(tmp_path / "sandbox.json"),
         benigno=Corpus("benigno", (EventoRed("salida", 443, _ip("10.0.0.20"), "https"),)),
         incidente=Corpus("inc", (EventoRed("salida", 4444, _ip("203.0.113.7"), "c2"),)),
     )
     return Despliegue(
-        forja=forja,
+        crisol=crisol,
         directorio=tmp_path / "despliegue",
         config=Config(plazo_canary_s=100.0, ventana_tasa_s=1000.0, max_cambios_ventana=3),
         ahora=lambda: reloj[0],
@@ -89,7 +89,7 @@ def test_una_propuesta_correcta_se_aplica_en_canary(despliegue):
 
 
 def test_una_propuesta_que_falla_un_gate_no_se_aplica(despliegue):
-    """Un lockout es BLOCKER en la forja: no llega a produccion."""
+    """Un lockout es BLOCKER en el crisol: no llega a produccion."""
     despacho = despliegue.desplegar(_lockout())
 
     assert despacho.estado is Estado.RECHAZADO_GATE

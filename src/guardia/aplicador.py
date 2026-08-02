@@ -1,7 +1,7 @@
 """El estado de politica activa, versionado, con rollback que se ejecuta de verdad.
 
 Gate 4 de la regla 6: un cambio sin rollback probado NO se aplica. Aqui "probado" no
-es documentado: `aplicar()` guarda el estado anterior, y la forja ejecuta el rollback
+es documentado: `aplicar()` guarda el estado anterior, y el crisol ejecuta el rollback
 en el sandbox y comprueba por hash que el estado vuelve exacto. Un rollback que no se
 ejecuta es una promesa, y este proyecto no aplica promesas.
 
@@ -43,7 +43,7 @@ def _valor(v):
 
 @dataclass(frozen=True)
 class Punto:
-    """Un punto de restauracion: el hash del estado antes de aplicar algo. La forja lo
+    """Un punto de restauracion: el hash del estado antes de aplicar algo. El crisol lo
     usa para probar que el rollback restaura exactamente este estado."""
 
     hash_previo: str

@@ -17,7 +17,7 @@ de host), Wazuh (HIDS/correlación), Sigma + YARA (formato de reglas), Suricata/
 posterior). Tabla completa en [ARQUITECTURA.md §6](../../ARQUITECTURA.md).
 
 Lo que se construye aquí: el plano de control (T2/T3) — triaje LLM sin autoridad,
-forja con gates de replay benigno/malicioso, rollback probado, canary e interruptor
+crisol con gates de replay benigno/malicioso, rollback probado, canary e interruptor
 de emergencia.
 
 ## Consecuencias

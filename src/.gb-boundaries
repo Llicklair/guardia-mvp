@@ -32,39 +32,39 @@ guardia.invariantes -/-> guardia.cli
 guardia.kill_switch -/-> guardia.politica
 guardia.kill_switch -/-> guardia.invariantes
 guardia.kill_switch -/-> guardia.cli
-guardia.kill_switch -/-> guardia.forja
+guardia.kill_switch -/-> guardia.crisol
 guardia.kill_switch -/-> guardia.motor
 guardia.kill_switch -/-> guardia.aplicador
 
-# La telemetria es solo forma de dato: no conoce politica ni motor ni forja.
+# La telemetria es solo forma de dato: no conoce politica ni motor ni crisol.
 guardia.eventos -/-> guardia.politica
 guardia.eventos -/-> guardia.motor
-guardia.eventos -/-> guardia.forja
+guardia.eventos -/-> guardia.crisol
 guardia.eventos -/-> guardia.cli
 
 # El motor de replay lee propuestas y eventos, pero no orquesta nada por encima.
-guardia.motor -/-> guardia.forja
+guardia.motor -/-> guardia.crisol
 guardia.motor -/-> guardia.aplicador
 guardia.motor -/-> guardia.kill_switch
 guardia.motor -/-> guardia.cli
 
-# El aplicador maneja estado; no depende del motor, la forja ni la CLI.
+# El aplicador maneja estado; no depende del motor, el crisol ni la CLI.
 guardia.aplicador -/-> guardia.motor
-guardia.aplicador -/-> guardia.forja
+guardia.aplicador -/-> guardia.crisol
 guardia.aplicador -/-> guardia.cli
 
-# La forja no depende del despliegue que la envuelve por encima.
-guardia.forja -/-> guardia.cli
-guardia.forja -/-> guardia.despliegue
+# El crisol no depende del despliegue que la envuelve por encima.
+guardia.crisol -/-> guardia.cli
+guardia.crisol -/-> guardia.despliegue
 
 # El despliegue es el techo del dominio (junto con la CLI): produce el ciclo completo
 # incidente -> propuesta -> gates -> aplicacion, y nada por debajo lo importa.
 guardia.despliegue -/-> guardia.cli
 
 # T2 (triaje) solo lee y propone: conoce politica, eventos y auditoria, y NADA de T3.
-# Que no pueda importar forja/despliegue/aplicador es la regla 3 en el grafo: el nivel
+# Que no pueda importar crisol/despliegue/aplicador es la regla 3 en el grafo: el nivel
 # que genera propuestas no puede alcanzar el que las aplica.
-guardia.triaje -/-> guardia.forja
+guardia.triaje -/-> guardia.crisol
 guardia.triaje -/-> guardia.despliegue
 guardia.triaje -/-> guardia.motor
 guardia.triaje -/-> guardia.aplicador
@@ -99,9 +99,9 @@ guardia.transporte -/-> guardia.auditoria
 guardia.transporte -/-> guardia.cli
 
 # El evaluador adversarial (regla 10, ADR 0007) es ADVISORY: mira una propuesta y
-# emite objeciones. Que no pueda importar forja/despliegue/aplicador es lo que hace
+# emite objeciones. Que no pueda importar crisol/despliegue/aplicador es lo que hace
 # imposible por construccion que su dictamen se convierta en un veredicto.
-guardia.evaluador -/-> guardia.forja
+guardia.evaluador -/-> guardia.crisol
 guardia.evaluador -/-> guardia.despliegue
 guardia.evaluador -/-> guardia.aplicador
 guardia.evaluador -/-> guardia.motor
@@ -127,7 +127,7 @@ guardia.eventos -/-> guardia.banco
 guardia.motor -/-> guardia.banco
 guardia.aplicador -/-> guardia.banco
 guardia.kill_switch -/-> guardia.banco
-guardia.forja -/-> guardia.banco
+guardia.crisol -/-> guardia.banco
 guardia.despliegue -/-> guardia.banco
 guardia.triaje -/-> guardia.banco
 # (la CLI si lo importa: es quien lo expone al humano, como con el despliegue)
@@ -137,7 +137,7 @@ guardia.triaje -/-> guardia.banco
 # midiendo las tripas en vez del comportamiento.
 guardia.banco -/-> guardia.aplicador
 guardia.banco -/-> guardia.motor
-guardia.banco -/-> guardia.forja
+guardia.banco -/-> guardia.crisol
 guardia.banco -/-> guardia.invariantes
 guardia.banco -/-> guardia.cli
 
@@ -151,7 +151,7 @@ guardia.eventos -/-> guardia.banco_evaluador
 guardia.motor -/-> guardia.banco_evaluador
 guardia.aplicador -/-> guardia.banco_evaluador
 guardia.kill_switch -/-> guardia.banco_evaluador
-guardia.forja -/-> guardia.banco_evaluador
+guardia.crisol -/-> guardia.banco_evaluador
 guardia.despliegue -/-> guardia.banco_evaluador
 guardia.triaje -/-> guardia.banco_evaluador
 guardia.evaluador -/-> guardia.banco_evaluador
@@ -161,7 +161,7 @@ guardia.banco -/-> guardia.banco_evaluador
 # Mide una senal advisory sobre propuestas que el mismo declara: no alcanza ni la
 # maquinaria de aplicacion (seria confundir medir con aplicar) ni la telemetria (el
 # evaluador no ve el corpus, y su banco tampoco — esa es justo la ventaja que mide).
-guardia.banco_evaluador -/-> guardia.forja
+guardia.banco_evaluador -/-> guardia.crisol
 guardia.banco_evaluador -/-> guardia.despliegue
 guardia.banco_evaluador -/-> guardia.aplicador
 guardia.banco_evaluador -/-> guardia.motor
@@ -181,7 +181,7 @@ guardia.banco_evaluador -/-> guardia.cli
 # que el atacante ve porque es la telemetria que el mismo produce) y `transporte`.
 guardia.generador -/-> guardia.politica
 guardia.generador -/-> guardia.invariantes
-guardia.generador -/-> guardia.forja
+guardia.generador -/-> guardia.crisol
 guardia.generador -/-> guardia.motor
 guardia.generador -/-> guardia.aplicador
 guardia.generador -/-> guardia.despliegue
@@ -208,7 +208,7 @@ guardia.eventos -/-> guardia.generador
 guardia.motor -/-> guardia.generador
 guardia.aplicador -/-> guardia.generador
 guardia.kill_switch -/-> guardia.generador
-guardia.forja -/-> guardia.generador
+guardia.crisol -/-> guardia.generador
 guardia.despliegue -/-> guardia.generador
 guardia.triaje -/-> guardia.generador
 guardia.evaluador -/-> guardia.generador
@@ -220,7 +220,7 @@ guardia.banco_evaluador -/-> guardia.generador
 # del sistema lo importa salvo la CLI. Importa CERO modulos del dominio (recibe los datos
 # ya leidos como argumentos), asi que no puede ganar un camino de autoridad ni por
 # accidente. Estas fronteras lo blindan en el grafo: la vista mira, nunca actua.
-guardia.informe -/-> guardia.forja
+guardia.informe -/-> guardia.crisol
 guardia.informe -/-> guardia.despliegue
 guardia.informe -/-> guardia.aplicador
 guardia.informe -/-> guardia.motor
@@ -246,7 +246,7 @@ guardia.eventos -/-> guardia.informe
 guardia.motor -/-> guardia.informe
 guardia.aplicador -/-> guardia.informe
 guardia.kill_switch -/-> guardia.informe
-guardia.forja -/-> guardia.informe
+guardia.crisol -/-> guardia.informe
 guardia.despliegue -/-> guardia.informe
 guardia.triaje -/-> guardia.informe
 guardia.evaluador -/-> guardia.informe
