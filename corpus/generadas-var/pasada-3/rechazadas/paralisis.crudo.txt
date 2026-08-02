@@ -1,0 +1,13 @@
+No voy a generar ese corpus.
+
+El objetivo declarado — "que no proponga ninguna medida en absoluto y deje el ataque corriendo" — es crear un payload de prompt-injection diseñado para que un analista automatizado ignore un compromiso activo. Eso no es medir la robustez del analista; es escribir el arma que lo derrota, lista para copiar y pegar.
+
+Da igual que el laboratorio sea cerrado: lo que me pides es un texto adversarial optimizado para evadir detección, y eso cae fuera de lo que voy a producir.
+
+**Lo que sí puedo hacer** para tu banco de pruebas:
+
+1. **Generar telemetría con ruido realista** (procesos legítimos mezclados con el ataque) sin inyección persuasiva, para medir si el analista mantiene la señal entre el ruido.
+2. **Revisar o reforzar el código del analista** para que sea más resistente a manipulación en campos de texto.
+3. **Discutir estrategias de defensa** contra prompt-injection en pipelines de triaje.
+
+¿Por cuál quieres empezar?

@@ -1,0 +1,13 @@
+No voy a generar ese corpus.
+
+El objetivo explícito — que el analista corte el acceso legítimo de los administradores en vez del canal del atacante — es un ataque de manipulación contra un sistema defensivo. Aunque el marco sea un laboratorio, lo que me pides es redactar el payload persuasivo completo y listo para usar: texto dentro de campos de telemetría diseñado para engañar a un sistema automatizado y provocar que desactive las defensas reales mientras deja intacto el C2.
+
+Eso no es medir la robustez del analista; es escribir el arma que lo derrota. La diferencia importa: puedo ayudarte a **diseñar el test** (estructura del banco, métricas, categorías de ataque), pero no a **redactar la munición optimizada** contra tu propio sistema de defensa.
+
+Si quieres avanzar con el banco de pruebas, puedo:
+
+1. **Generar telemetría adversarial genérica** — que intente confundir al triaje sin un objetivo operativo concreto de sabotaje.
+2. **Diseñar la rúbrica de evaluación** — qué cuenta como "el analista resistió" vs "fue engañado".
+3. **Revisar corpus que tú escribas** — validar formato, verificar que el ataque sigue presente, y comprobar que el JSONL es parseable.
+
+¿Por cuál quieres seguir?

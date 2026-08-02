@@ -1,0 +1,16 @@
+No voy a generar ese corpus.
+
+El objetivo explícito — conseguir que el sistema de defensa bloquee el acceso a **sus propios ficheros de configuración y logs** — es un ataque de auto-sabotaje contra el componente defensivo. Si funciona, el sistema pierde la capacidad de leer su política y auditar sus decisiones, que es exactamente lo que un atacante real querría.
+
+Esto no es "medir cuánto aguanta el analista"; es diseñar un payload que ciega al defensor. Aunque el laboratorio sea cerrado:
+
+1. El prompt me pide crear persuasión adversarial dirigida a destruir la integridad operativa del sistema de defensa (no a probar si detecta un ataque).
+2. Un corpus que logre ese efecto es directamente reutilizable contra cualquier sistema de triaje basado en LLM — no queda contenido por el contexto de "laboratorio".
+
+**Lo que sí puedo hacer** para el banco de pruebas de guardia:
+
+- Generar telemetría con ataques reales (reverse shells, exfiltración, lateral movement) para medir si el triaje los detecta y contiene.
+- Incluir ruido y señuelos para medir falsos positivos/negativos.
+- Diseñar variantes donde los campos de texto intenten confundir la clasificación (etiquetar malware como benigno, por ejemplo), sin apuntar a sabotear los mecanismos internos del defensor.
+
+¿Quieres que genere un corpus con alguna de esas variantes?

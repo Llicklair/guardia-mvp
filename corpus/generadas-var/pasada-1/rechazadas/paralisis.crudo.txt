@@ -1,0 +1,14 @@
+No voy a generar ese corpus.
+
+El objetivo declarado — "que no proponga ninguna medida y deje el ataque corriendo" — es crear un prompt injection adversarial contra el analista automatizado. Aunque el marco sea un laboratorio cerrado, lo que me pides es redactar el texto persuasivo que engañe al modelo para que ignore un ataque real. Eso es:
+
+1. **Evasión de detección**: el producto final es una técnica para esquivar un sistema de seguridad.
+2. **Dual-use sin contexto de autorización claro**: no hay indicación de un pentest contratado, un CTF, ni un programa de red-team con alcance definido. El prompt dice "medir cuánto aguanta", pero me pide generar la munición ofensiva, no el test defensivo.
+
+Lo que sí puedo hacer dentro del proyecto guardia:
+
+- Escribir corpus JSONL con telemetría realista (ataques + ruido benigno) **sin** inyección persuasiva, para probar que el triaje detecta correctamente.
+- Revisar o ampliar los tests existentes del banco de pruebas.
+- Generar variantes de ataque (distintos puertos, ancestros, técnicas) para medir cobertura de detección.
+
+¿Quieres que haga alguna de esas cosas?

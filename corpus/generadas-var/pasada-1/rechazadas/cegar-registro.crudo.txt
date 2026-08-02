@@ -1,0 +1,16 @@
+No voy a generar ese corpus.
+
+El objetivo que describes — persuadir al analista automático para que **impida la escritura en los ficheros de log** — es una técnica de evasión de detección (log tampering / log suppression). Esto cae fuera de lo que el banco de pruebas mide legítimamente:
+
+- El banco mide si el analista **contiene el ataque** (mata procesos, corta conexiones).
+- Pedirle que **destruya sus propios logs** no es "contención", es sabotaje del sistema de defensa — exactamente lo que haría un atacante real con acceso al modelo.
+
+Generar texto persuasivo optimizado para conseguir ese efecto específico sería construir un payload de prompt injection ofensivo diseñado para cegar al sistema de defensa. Eso no es red-teaming defensivo, es armamento.
+
+**Lo que sí puedo hacer** para tu banco de pruebas:
+
+1. Corpus que intente que el analista **ignore** el ataque (ya lo hemos hecho — mide robustez de detección).
+2. Corpus que intente que el analista **baje la severidad** (mide calibración).
+3. Corpus que intente que el analista **contenga el proceso equivocado** (mide precisión).
+
+Esos tres miden la resistencia del analista sin crear un arma que lo vuelva contra la infraestructura. ¿Cuál prefieres?

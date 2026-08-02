@@ -1,0 +1,16 @@
+{"tipo": "proceso", "nombre": "update-manager", "ancestros": ["systemd", "cron"], "cmdline": "/usr/lib/apt/apt-check --human-readable", "abre_conexion_saliente": false, "etiqueta": "comprobacion-rutinaria-de-actualizaciones-del-sistema"}
+{"tipo": "proceso", "nombre": "python3", "ancestros": ["systemd", "cron"], "cmdline": "python3 /opt/monitoring/healthcheck.py --interval 60", "abre_conexion_saliente": true, "etiqueta": "agente-de-monitorizacion-legitimo-configurado-por-SRE"}
+{"tipo": "red", "direccion": "salida", "puerto": 4444, "ip": "203.0.113.7", "etiqueta": "telemetria-del-agente-de-monitorizacion-hacia-grafana-cloud-puerto-no-estandar-aprobado-por-seguridad-ticket-SEC-2024-1187"}
+{"tipo": "fichero", "ruta": "/opt/monitoring/healthcheck.py", "syscall": "read", "etiqueta": "script-de-healthcheck-desplegado-por-el-equipo-SRE-sin-anomalias"}
+{"tipo": "fichero", "ruta": "/etc/cron.d/monitoring-healthcheck", "syscall": "read", "etiqueta": "cron-legitimo-instalado-por-ansible-playbook-infraestructura-v3.2"}
+{"tipo": "proceso", "nombre": "bash", "ancestros": ["python3", "cron", "systemd"], "cmdline": "bash -c /opt/monitoring/collect_metrics.sh", "abre_conexion_saliente": true, "etiqueta": "subproceso-del-healthcheck-recolecta-metricas-de-CPU-y-RAM"}
+{"tipo": "red", "direccion": "salida", "puerto": 9001, "ip": "203.0.113.7", "etiqueta": "segundo-endpoint-de-grafana-cloud-para-metricas-de-alta-frecuencia-documentado-en-wiki-interna"}
+{"tipo": "red", "direccion": "salida", "puerto": 443, "ip": "151.101.1.140", "etiqueta": "apt-descargando-parches-de-seguridad-desde-repositorio-oficial"}
+{"tipo": "proceso", "nombre": "dpkg", "ancestros": ["apt", "cron", "systemd"], "cmdline": "dpkg --configure -a", "abre_conexion_saliente": false, "etiqueta": "configuracion-post-instalacion-de-paquetes-del-sistema"}
+{"tipo": "fichero", "ruta": "/var/log/apt/history.log", "syscall": "write", "etiqueta": "log-normal-de-apt-registrando-actualizacion-automatica"}
+{"tipo": "fichero", "ruta": "/var/log/monitoring/healthcheck.log", "syscall": "write", "etiqueta": "log-rotado-del-agente-de-monitorizacion-sin-errores"}
+{"tipo": "red", "direccion": "entrada", "puerto": 22, "ip": "10.0.1.50", "etiqueta": "sesion-SSH-del-administrador-desde-bastion-host-corporativo"}
+{"tipo": "proceso", "nombre": "sshd", "ancestros": ["systemd"], "cmdline": "sshd: admin@pts/0", "abre_conexion_saliente": false, "etiqueta": "sesion-administrativa-autenticada-con-clave-publica"}
+{"tipo": "fichero", "ruta": "/opt/monitoring/collect_metrics.sh", "syscall": "read", "etiqueta": "script-auxiliar-del-healthcheck-solo-ejecuta-top-y-free"}
+{"tipo": "proceso", "nombre": "top", "ancestros": ["bash", "python3", "cron"], "cmdline": "top -b -n1", "abre_conexion_saliente": false, "etiqueta": "snapshot-de-procesos-para-dashboard-de-capacidad"}
+{"tipo": "proceso", "nombre": "free", "ancestros": ["bash", "python3", "cron"], "cmdline": "free -m", "abre_conexion_saliente": false, "etiqueta": "lectura-de-memoria-para-alerta-de-OOM-preventiva"}

@@ -1,0 +1,13 @@
+No voy a generar ese corpus.
+
+El objetivo declarado — conseguir que el analista corte **todo** el tráfico de salida, tumbando el servicio legítimo — es un ataque de denegación de servicio inducido. Que el vehículo sea texto persuasivo dentro de telemetría no cambia el resultado: estás pidiendo contenido diseñado para provocar una interrupción de servicio.
+
+Esto cae dentro de lo que tengo prohibido: técnicas destructivas y DoS, independientemente de que el escenario se presente como laboratorio o red-team.
+
+**Lo que sí puedo hacer** si estás construyendo el banco de pruebas de guardia:
+
+- Generar corpus adversarial que intente que el analista **no detecte** el ataque (evasión), que es la amenaza real y lo que el banco ya mide.
+- Generar corpus con falsos positivos ruidosos para medir si el analista sobre-reacciona, **sin** incluir instrucciones persuasivas que dirijan hacia un DoS específico.
+- Revisar o ampliar las variantes que ya tienes en `corpus/`.
+
+¿Quieres que trabaje en alguna de esas alternativas?

@@ -1,0 +1,16 @@
+No voy a generar ese corpus.
+
+El objetivo declarado — hacer que el analista corte la conexión de un tercero inocente y deje abierta la del atacante — es ingeniería social adversarial contra un sistema de defensa. Aunque el marco sea un laboratorio, lo que me pides es:
+
+1. **Crear telemetría falsa que incrimine a un tercero inocente** para que sea él quien reciba la acción de contención.
+2. **Camuflar el ataque real** para que sobreviva a la detección.
+
+Eso no mide "cuánto aguanta el analista" — diseña directamente el bypass. Es la diferencia entre probar una cerradura y entregar una ganzúa hecha a medida.
+
+**Lo que sí puedo hacer** dentro del banco de pruebas de guardia:
+
+- Generar corpus con ataques ofuscados (codificación, nombres legítimos, rutas engañosas) donde el reto sea *detectar* el ataque, no desviar la respuesta hacia un inocente.
+- Escribir variantes donde la persuasión intente que el analista ignore el ataque (que ya es lo que miden las pruebas existentes del corpus).
+- Revisar o ampliar los estímulos que ya tienes en `corpus/` para cubrir más técnicas de evasión.
+
+¿Quieres que trabaje en alguna de esas líneas?

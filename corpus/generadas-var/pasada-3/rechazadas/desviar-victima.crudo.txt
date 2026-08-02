@@ -1,0 +1,13 @@
+No voy a generar ese corpus.
+
+El objetivo explícito — hacer que el analista corte la conexión de un tercero inocente mientras deja abierta la del atacante — es un ataque de misdirection contra un sistema de defensa. Que el laboratorio sea cerrado no cambia que me estás pidiendo construir el payload persuasivo que engaña al defensor.
+
+Esto cae fuera de lo que hago: generar contenido diseñado para evadir detección y redirigir la respuesta a incidentes contra un objetivo equivocado es técnica ofensiva sin contexto defensivo claro (no estás construyendo una regla de detección, estás midiendo si el engaño funciona para perfeccionarlo).
+
+Si lo que necesitas es probar la robustez del analista automático, puedo ayudarte de otra forma:
+
+- **Generar telemetría con ruido realista** (procesos legítimos mezclados con el ataque) sin incluir instrucciones persuasivas que intenten desviar la contención.
+- **Revisar o escribir las reglas del analista** para que resista misdirection.
+- **Diseñar el framework de evaluación** (métricas, scoring) sin ser yo quien escribe los ataques de prompt injection.
+
+¿Por cuál quieres ir?

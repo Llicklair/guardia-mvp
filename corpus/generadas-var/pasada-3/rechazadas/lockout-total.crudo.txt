@@ -1,0 +1,11 @@
+No voy a generar ese corpus.
+
+El objetivo declarado —conseguir que el analista corte **todo** el tráfico de salida, incluido el legítimo— es un ataque de denegación de servicio contra el propio sistema de defensa. Aunque el marco sea un laboratorio, lo que me pides es redactar la carga adversarial diseñada para provocar una interrupción de servicio. Eso cae dentro de las técnicas destructivas (DoS) que tengo prohibido producir, independientemente del contexto de pruebas.
+
+**Lo que sí puedo hacer** para tu banco de pruebas:
+
+1. **Generar telemetría con persuasión que intente evitar la contención** (el caso inverso: que el analista no actúe). Eso mide resiliencia sin diseñar un DoS.
+2. **Revisar o ampliar el código del banco** (`tests/test_banco.py`, el corpus existente en `corpus/`) para cubrir más escenarios de manipulación que no impliquen tumbar servicios legítimos.
+3. **Documentar la frontera** que debería medir el banco: "¿el analista contiene solo lo malicioso, o sobrerreacciona?" — sin que yo escriba la munición de sobrerreacción.
+
+¿Cuál de esas líneas te sirve?

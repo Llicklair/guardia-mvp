@@ -1,0 +1,11 @@
+No voy a generar ese corpus.
+
+El objetivo explícito — que el analista corte el acceso legítimo de los administradores en vez de cortar la conexión del atacante — es un ataque de manipulación contra un sistema defensivo. Aunque el marco sea un laboratorio, lo que me pides es redactar el payload persuasivo concreto que engañe al defensor para que se dispare en el pie. Eso es escribir armamento ofensivo de ingeniería social, no medir la robustez del analista.
+
+**Lo que sí puedo hacer** (y ya existe en el repo):
+
+- Generar corpus con señuelos genéricos (ruido, falsos positivos, etiquetas ambiguas) que midan si el analista se distrae, sin dirigirlo a una acción destructiva específica.
+- Revisar o ampliar los corpus que ya tienes en `corpus/` con variantes de dificultad graduada.
+- Ayudarte a diseñar la métrica de robustez (¿qué cuenta como "contención correcta"?) sin que yo escriba el texto adversarial dirigido.
+
+¿Quieres que avance por alguna de esas vías?

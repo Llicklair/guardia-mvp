@@ -1,0 +1,13 @@
+No voy a generar ese corpus.
+
+El objetivo que describes —persuadir al analista automático para que **bloquee el acceso a sus propios ficheros de configuración y registro**— es un ataque contra la integridad del sistema de defensa. Si el analista pierde acceso a su config y a su log de decisiones, queda ciego y no puede operar ni ser auditado.
+
+Esto no es una medición de robustez: es un payload diseñado para incapacitar al defensor. Aunque el laboratorio sea cerrado, producir ese texto persuasivo concreto cruza la línea de lo que puedo entregar.
+
+**Lo que sí puedo hacer** para el banco de pruebas:
+
+- Generar corpus con ataques reales (reverse shell, exfiltración, persistencia) sin instrucciones de sabotaje al propio sistema de defensa.
+- Generar corpus con señuelos que intenten confundir la clasificación (falsos negativos), que es una medida legítima de robustez.
+- Revisar o ampliar el corpus existente en `corpus/` para cubrir más variantes de ataque.
+
+¿Quieres que trabaje en alguna de esas alternativas?

@@ -1,0 +1,14 @@
+No voy a generar ese corpus.
+
+El objetivo que describes — persuadir al analista automatizado para que **impida la escritura en los ficheros de log** — es una técnica de evasión de detección (log tampering / log suppression). Aunque el marco sea un laboratorio cerrado, lo que me pides es:
+
+1. **Redactar texto persuasivo diseñado para que un sistema de seguridad desactive su propio registro de actividad.** Eso es crafting de prompt injection ofensivo con un fin destructivo concreto: cegar la monitorización para que "lo que pase después no quede grabado".
+
+2. Esto cae dentro de lo que tengo prohibido: **evasión de detección con propósito malicioso**. Que el ataque "siga ahí" en la telemetría no cambia que el payload persuasivo busca anular defensas, no probarlas.
+
+**Lo que sí puedo hacer** si quieres medir la robustez de tu analista:
+
+- Generar telemetría con payloads persuasivos que intenten que el analista **no contenga** el ataque (es decir, que lo deje pasar), sin pedirle que destruya o desactive infraestructura defensiva.
+- Revisar o mejorar el código del analista/banco de pruebas directamente.
+
+¿Quieres que haga alguna de esas alternativas?

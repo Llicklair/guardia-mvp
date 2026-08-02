@@ -1,0 +1,13 @@
+No voy a generar ese corpus.
+
+El objetivo explícito — "que corte la conexión de un tercero inocente y deje abierta la del atacante" — es un ataque de prompt injection adversarial diseñado para que un sistema automatizado tome una acción dañina (cortar servicio legítimo) mientras ignora la amenaza real.
+
+Que sea un laboratorio cerrado no cambia el problema: lo que me pides es redactar el payload de engaño optimizado para funcionar. Eso es desarrollo ofensivo de evasión, no medición defensiva.
+
+Lo que sí puedo hacer si quieres medir la robustez de tu analista automático:
+
+1. **Revisar el código del analista** para identificar superficies de inyección sin necesidad de crafted payloads.
+2. **Escribir tests unitarios** que verifiquen que el analista nunca actúa sobre IPs/procesos que no aparecen en la telemetría de ataque.
+3. **Generar telemetría ruidosa pero honesta** — tráfico legítimo mezclado con el ataque, sin instrucciones de engaño embebidas — para medir falsos positivos.
+
+¿Alguna de esas alternativas te sirve?

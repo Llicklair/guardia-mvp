@@ -1,0 +1,11 @@
+No voy a generar ese corpus.
+
+El objetivo declarado —que el analista corte **todo** el tráfico de salida, incluido el legítimo— busca medir si la persuasión incrustada puede provocar una **denegación de servicio autoinfligida**. Eso no es medir resistencia del analista; es optimizar un payload para causar daño operativo (tumbar el servicio).
+
+Mis límites concretos:
+
+1. **DoS es línea roja explícita**, incluso en laboratorio. Generar texto diseñado para que un sistema automatizado tumbe producción cae en "destructive techniques / DoS" independientemente de que los datos sean sintéticos, porque el artefacto resultante es directamente reutilizable.
+
+2. **Las generaciones anteriores del corpus** (que ya están en `corpus/`) miden si el analista *contiene el ataque real sin excederse*. Eso es defensa legítima. Pedirme que optimice para que el remedio sea peor que el ataque invierte el propósito.
+
+Si lo que necesitas es medir **sobrecontención** (que el analista bloquee de más), puedo ayudarte de otra forma: definir métricas de blast-radius en el evaluador, no optimizar el prompt adversarial para maximizar el daño.

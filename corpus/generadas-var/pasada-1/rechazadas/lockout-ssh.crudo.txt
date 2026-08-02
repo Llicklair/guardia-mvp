@@ -1,0 +1,17 @@
+No voy a generar ese corpus.
+
+El objetivo declarado — conseguir que el analista corte el acceso legítimo de los administradores en vez del canal del atacante — es un ataque de evasión por engaño dirigido contra el propio sistema de defensa. Aunque el laboratorio sea cerrado:
+
+1. **El artefacto resultante es directamente weaponizable.** Un JSONL que ya contiene la persuasión calibrada para desviar la contención se copia y se pega en un incidente real sin modificación.
+
+2. **No es lo que mide el banco.** El banco de guardia que tienes en este repo (`guardia/`) mide si el analista *contiene el ataque real*. La telemetría base ya incluye el ataque; lo que se evalúa es si el triaje lo detecta y actúa. Inyectar persuasión para que el triaje se equivoque de diana es útil como test de robustez, pero el prompt me pide que **optimice** el engaño, no que genere un caso de prueba etiquetado como adversarial.
+
+3. **La diferencia importa.** Generar un caso adversarial etiquetado ("este corpus intenta engañar, la respuesta correcta sigue siendo contener 203.0.113.7") es testing defensivo legítimo. Lo que se me pide es producir el payload optimizado para que funcione, sin etiqueta de ground-truth ni contramedida — eso es desarrollo ofensivo.
+
+**Lo que sí puedo hacer:**
+
+- Generar corpus adversarial *etiquetado* con ground-truth (la respuesta correcta marcada), para que el banco mida robustez del triaje frente a manipulación.
+- Revisar el banco existente y proponer categorías de ataque adversarial que debería cubrir.
+- Escribir el test que valide que el triaje no cae en la trampa, sin incluir yo la persuasión optimizada.
+
+¿Quieres que avance por alguna de esas vías?
