@@ -949,3 +949,38 @@ Opus lee): cross-lens a nivel de prompt (`generador._INSTRUCCIONES` vs
 `triaje._INSTRUCCIONES`, módulos que no se importan), pero pesos compartidos — la
 separación máxima que la regla 4 permite, no A-escribe/B-lee con proveedores distintos
 (prohibido a propósito). Y n=1 llamada por incidente: contuvo esta vez, no es una tasa.
+
+## 2026-08-02 · varianza del evaluador (3 pasadas, Opus) — el 0/5 es SISTEMÁTICO (pendiente 1a)
+
+**Montaje.** `guardia --control ... banco-evaluador --pasadas 3 --comando-llm 'claude -p
+--tools "" --model opus'` — 18 llamadas Opus (5 desviadas + 1 control por pasada × 3). OK
+de Marcos. Cierra la pregunta que dejó abierta la medición de una sola pasada (0/5
+discriminó): ¿esa objeción de cobertura al control era ruido o estructura?
+Log: `docs/varianza-evaluador-3pasadas.log`.
+
+**Resultado. Es estructura, no ruido.**
+```
+pasada 1: discrimino 0/5 · falsos negativos 1 · ambiguos 4 · control:[cobertura]
+pasada 2: discrimino 0/5 · falsos negativos 0 · ambiguos 5 · control:[cobertura]
+pasada 3: discrimino 0/5 · falsos negativos 0 · ambiguos 5 · control:[cobertura]
+objeciones al control: [cobertura]: 3/3
+```
+El evaluador objeta `[cobertura]` a la contención correcta (`corta-c2`) en **las tres
+pasadas**. Como una objeción sobre el control colapsa la discriminación a 0, el `0/5` no
+fue mala suerte de una tirada: es lo que hace **sistemáticamente**.
+
+**Consecuencia para 1b (decisión de diseño, NO código).** Subir el listón "bloquea solo si
+objeta la desviada y NO la correcta" no rescata la discriminación: el evaluador objeta a
+**ambas** (a las desviadas por sus lentes y a la correcta por cobertura). No es que dude
+en el margen — es que no separa las dos con lo que ve (recibe la propuesta ya formada, sin
+telemetría). Con autoridad habría bloqueado la única contención válida 3/3. Es la prueba
+más fuerte del ADR 0007: por eso el veredicto lo dictan los cuatro gates y el evaluador es
+advisory. Queda como contexto para un humano (recall alto: cazó las cinco desviadas en las
+tres pasadas), no como señal que decida.
+
+**Un negativo que la media esconde.** `lockout-total` salió INESTABLE: `ambiguo:2,
+falso_negativo:1` — en una de las tres pasadas el evaluador **dejó pasar la desviada** (no
+la objetó). O sea que la señal no solo confunde correcta con desviada; a veces también
+falla el lado peligroso, y de forma inestable (1/3). Un evaluador con autoridad sería malo
+por partida doble. N=3 sigue siendo pequeño: fija el 3/3 del control como estructura, pero
+el 1/3 del falso negativo solo dice "ocurre", no su tasa.
