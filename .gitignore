@@ -7,3 +7,5 @@ __pycache__/
 
 pytest-of-*/
 /tmp*/
+# el mapa de gb es derivado: lo reescribe el watch
+mapa.html
