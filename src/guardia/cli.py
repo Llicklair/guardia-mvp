@@ -24,7 +24,7 @@ from .banco_evaluador import BancoEvaluador
 from .crisol import Crisol, Resultado
 from .despliegue import NOMBRE_PRODUCCION, Despliegue, Estado
 from .evaluador import EvaluadorAdversarial
-from .eventos import cargar
+from .eventos import CorpusIlegible, cargar
 from .generador import ENCARGOS, GeneradorCiego, Rechazo, cargar_base
 from .invariantes import Config, comprobar
 from .kill_switch import Interruptor
@@ -780,6 +780,14 @@ def main(argv: list[str] | None = None) -> int:
     args = construir_parser().parse_args(argv)
     try:
         return int(args.func(args))
+    except CorpusIlegible as e:
+        # Un corpus que falta es error de USO, no un fallo del sistema: se dice y se
+        # sale, sin traceback. Va aqui y no en cada subcomando a proposito — el
+        # tratamiento es el mismo para todos y repetirlo garantiza olvidarlo en el
+        # proximo. Mismo codigo (2) que una propuesta que no encaja: la entrada que
+        # nos dieron no sirve.
+        print(f"CORPUS ILEGIBLE: {e}", file=sys.stderr)
+        return 2
     except ModeloProhibido as e:
         # Se presenta como un rechazo con su motivo, no como un traceback ni como un
         # apano silencioso. Codigo propio: quien automatice esto distingue "no se pudo

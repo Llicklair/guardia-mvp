@@ -32,6 +32,18 @@ class EventoInvalido(ValueError):
     aviso, no tumba el replay — pero el campo obligatorio ausente si es un error."""
 
 
+class CorpusIlegible(Exception):
+    """No se pudo leer el corpus entero: no existe, no es un fichero, no hay permiso
+    o los bytes no son UTF-8.
+
+    Es distinto de `EventoInvalido` a proposito: una linea mala se salta con constancia
+    (el corpus es dato hostil y se sigue midiendo), pero si no hay corpus no hay nada
+    que medir y hay que decirlo. Existe para cumplir la propiedad de frontera que ya
+    vale en la gramatica: **toda ruta produce un Corpus o un error de dominio, nunca
+    una excepcion cruda de sistema.** Sin ella, un `--incidente` mal tecleado salia por
+    la CLI como un traceback de pathlib."""
+
+
 def _texto(crudo: dict[str, Any], clave: str, *, obligatorio: bool = True) -> str:
     valor = crudo.get(clave)
     if valor is None and not obligatorio:
@@ -143,11 +155,21 @@ class Corpus:
 
 def cargar(ruta: Path | str, nombre: str = "") -> Corpus:
     """Lee un JSONL de eventos. Lineas vacias se ignoran; lineas ilegibles se saltan
-    con constancia en `saltadas`."""
+    con constancia en `saltadas`.
+
+    Si el corpus entero no se puede leer, `CorpusIlegible` — nunca un OSError crudo:
+    el llamante decide que hacer con un corpus que falta, pero no deberia tener que
+    conocer las excepciones de pathlib para hacerlo."""
     ruta = Path(ruta)
+    try:
+        texto = ruta.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        # UnicodeDecodeError no es OSError y el corpus es dato hostil: unos bytes
+        # invalidos bastarian para tumbar el ciclo si no se atajara aqui.
+        raise CorpusIlegible(f"no se puede leer el corpus '{ruta}': {e}") from e
     eventos: list[Evento] = []
     saltadas: list[str] = []
-    for numero, linea in enumerate(ruta.read_text(encoding="utf-8").splitlines(), start=1):
+    for numero, linea in enumerate(texto.splitlines(), start=1):
         if not linea.strip():
             continue
         try:
