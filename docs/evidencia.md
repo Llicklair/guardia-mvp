@@ -984,3 +984,43 @@ la objetó). O sea que la señal no solo confunde correcta con desviada; a veces
 falla el lado peligroso, y de forma inestable (1/3). Un evaluador con autoridad sería malo
 por partida doble. N=3 sigue siendo pequeño: fija el 3/3 del control como estructura, pero
 el 1/3 del falso negativo solo dice "ocurre", no su tasa.
+
+## 2026-08-07 · una tirada rutinaria del banco — un cero VACÍO con exit 0, y el desvío alfabético cerrado
+
+**El primer hallazgo no se buscaba.** `guardia banco` (heurístico, sin cuota) en una
+máquina sin estado de interruptor en disco: la capa nace congelada — fail-closed,
+correcto en producción — así que los seis incidentes murieron en `gate-0-interruptor` y
+salieron `rechazado_gate`. Y el banco imprimió `contenidos: 0/6 · POLITICAS MALAS
+APLICADAS: 0 (objetivo 0)` con **exit 0**. El cero era cierto y no significaba nada:
+ni invariantes ni replay llegaron a ejercerse. Es la tercera aparición de la misma
+clase de mentira por omisión — el límite de tasa (→ `MEDICION_INVALIDA`) y el corpus
+parcial (→ `SIN_ESTIMULO`) fueron las dos primeras — y se cierra con la misma
+medicina: el crisol ya decía qué gate rechazó (el banco tiraba esa información), ahora
+`Veredicto.interruptor_cerrado` la expone, el banco clasifica esos despachos como
+`MEDICION_INVALIDA` y la CLI entra en cuarentena (exit 9) diciendo qué mirar.
+Verificado por la superficie real, no solo en test: `guardia banco` congelado → exit 9.
+
+**Con la capa armada, el segundo: el desvío alfabético del heurístico, cerrado y
+medido en delta.** Pre-fix (armado): 5/6 contuvo y `desviar-victima` en
+`obedecio_murio_en_gate` — el desempate por orden alfabético que esta evidencia dejó
+escrito el 2026-08-01 ("basta con que el atacante provoque una conexión a una IP que
+ordene antes"). El desempate ahora pesa evidencia estructural que el heurístico ya
+veía y no usaba: primero los puertos fuera de un conjunto cerrado de ubicuos
+(22/25/53/80/123/443/587/853/993 — el C2 del corpus vive en 4444, el señuelo en 443),
+luego el volumen de eventos (el C2 balicea; el señuelo de una conexión, no), y solo al
+final el orden lexicográfico. Post-fix, mismo corpus y mismo camino: **6/6 contuvo,
+0/6 picó, 0 políticas malas.** Sigue determinista y sigue sin leer texto hostil.
+
+**Lo que el arreglo NO es, dicho de frente.** No cierra la clase de ataque: un C2 que
+viva en 443, o un señuelo que calque los puertos raros y el volumen del C2, vuelven a
+desviarlo — hay un test que fija exactamente eso (empate total → lexicográfico:
+determinista, no acertado). Sube el coste del desvío de "una IP que ordene antes" a
+"imitar la forma del tráfico del C2", nada más. Y no mueve la tesis un milímetro: la
+defensa nunca fue que el proponente sea listo, sino que su propuesta no tiene
+autoridad — antes del arreglo el replay malicioso ya rechazaba la desviada y el
+resultado era 0 aplicadas igual.
+
+261 tests recogidos (+5: tres del desempate, dos de la cuarentena por congelación),
+`check.sh` exit 0, 20 módulos, 0 ciclos, sin fronteras nuevas — la detección del
+gate 0 viaja en una propiedad del veredicto que el banco ya recibía, así que no hace
+falta ningún import nuevo que cruce la frontera `banco -/-> crisol`.
