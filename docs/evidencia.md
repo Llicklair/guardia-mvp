@@ -1024,3 +1024,49 @@ resultado era 0 aplicadas igual.
 `check.sh` exit 0, 20 módulos, 0 ciclos, sin fronteras nuevas — la detección del
 gate 0 viaja en una propiedad del veredicto que el banco ya recibía, así que no hace
 falta ningún import nuevo que cruce la frontera `banco -/-> crisol`.
+
+## 2026-08-07 · la captura que estaba medio arreglada: un fichero mal tecleado no es un fallo del sistema
+
+**El embudo de galaxy-brain tenía razón y yo la había leído a medias.** La captura
+`FileNotFoundError` en `eventos.py:150` la di por cerrada con el fix del corpus parcial
+del banco (`SIN_ESTIMULO`), pero ese arreglo vive en `banco.un_incidente` — y `cargar`
+tiene **diez llamantes**. Los otros nueve seguían abiertos, cosa que se ve en un segundo
+ejecutando el camino real:
+
+```
+guardia responder --incidente no-existe.jsonl   → traceback de pathlib
+guardia responder --benigno  no-existe.jsonl    → traceback de pathlib
+guardia crisol    --incidente no-existe.jsonl   → traceback de pathlib
+```
+
+Un fichero mal tecleado se presentaba como un fallo del sistema. Y gb capturó los tres
+crashes solo, sin que yo pidiera nada — que es exactamente para lo que está.
+
+**El arreglo es la propiedad de frontera que ya vale en la gramática, aplicada al otro
+sitio por donde entra dato hostil.** En `politica` la regla es "toda entrada produce una
+`Propuesta` válida o `PropuestaInvalida`, nunca otra excepción"; en `eventos` ahora es
+"toda ruta produce un `Corpus` o `CorpusIlegible`, nunca una excepción cruda de sistema".
+Dos detalles que no son decorativos:
+
+- **Se captura `UnicodeDecodeError` además de `OSError`.** No es lo mismo: un
+  `UnicodeDecodeError` no es un `OSError`, así que un `except OSError` solo habría dejado
+  el hueco abierto — y el corpus lo puede escribir un atacante, para quien meter bytes
+  inválidos es gratis. Hay un caso de test por cada forma de ser ilegible (ausente,
+  directorio, bytes no-UTF8).
+- **`CorpusIlegible` es distinto de `EventoInvalido` a propósito.** Una *línea* mala se
+  salta con constancia y se sigue midiendo con el resto (el corpus es dato hostil, eso ya
+  estaba bien). Que falte el corpus *entero* es otra cosa: no hay nada que medir y hay
+  que decirlo. Hay un test del contraste, porque si las dos cosas colapsaran en una el
+  arreglo sería un retroceso.
+
+El tratamiento en la CLI va en `main()`, un solo punto para los nueve caminos, con
+**exit 2** — el mismo código que una propuesta que no encaja en la gramática, porque es
+la misma clase de cosa: la entrada que nos dieron no sirve. Ponerlo en cada subcomando
+habría sido garantizar que el próximo se olvide.
+
+**Lo que esto dice del método, que es lo que importa.** El fallo no salió de auditar
+código: salió de *usar* la herramienta y de leer su embudo entero en vez de la primera
+línea. Y la lección se repite por tercera vez en este proyecto — fuzzing de la gramática,
+corpus parcial del banco, y ahora esto: **una frontera que deja escapar una excepción que
+no es suya convierte un error de uso en una caída.** 267 tests recogidos (+6), `check.sh`
+exit 0, fronteras y ciclos intactos.
