@@ -1070,3 +1070,29 @@ línea. Y la lección se repite por tercera vez en este proyecto — fuzzing de 
 corpus parcial del banco, y ahora esto: **una frontera que deja escapar una excepción que
 no es suya convierte un error de uso en una caída.** 267 tests recogidos (+6), `check.sh`
 exit 0, fronteras y ciclos intactos.
+
+**Y tirar del hilo destapó dos más, uno de ellos peor.** Al verificar el arreglo por la
+CLI real, gb capturó otro crash de la misma clase que yo no había buscado: el fichero de
+**propuesta** ausente en `validar`/`crisol`/`desplegar` (misma frontera, otra ruta de
+entrada) — cerrado con `EntradaIlegible` y un helper compartido por los tres, tratado en
+`main()` junto al anterior. Pero al barrer el resto de comandos apareció esto:
+
+```
+guardia informe        → TypeError: expected str … not NoneType
+guardia enforcement    → TypeError: expected str … not NoneType
+```
+
+**Los dos comandos más nuevos del repo estaban rotos en su camino por defecto.** Ambos
+hacían `Path(args.control)`, y `--control` vale `None` mientras nadie escriba la bandera;
+el `Interruptor` es quien resuelve el defecto (`GUARDIA_CONTROL_DIR` o el del sistema) y
+ninguno de los dos se lo preguntaba. Funcionaban **solo** si tecleabas `--control`, que es
+justo la inversión que este proyecto tiene escrita como regla: lo correcto es lo que sale
+sin escribir nada, y desviarse es lo que cuesta una bandera. Aquí el defecto era el único
+camino roto, y por eso nadie lo había visto: cada vez que los probé, los probé con
+`--control` explícito.
+
+Los dos fallos comparten causa con todo lo anterior — **no se descubren leyendo código,
+se descubren ejecutándolo**, y la única razón de que aparecieran ahora es que esta vez
+corrí los comandos como los correría alguien que acaba de instalar esto. Siete caminos
+verificados por la superficie: cinco de fichero ausente salen `exit 2` sin traceback, y
+los dos comandos sin banderas salen `exit 0`. 270 tests recogidos, `check.sh` exit 0.

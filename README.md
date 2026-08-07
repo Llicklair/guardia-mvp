@@ -83,7 +83,7 @@ exige nombrar el modelo a mano.
 bash check.sh   # ruff + pytest + gate del grafo de dependencias (gb graph src --gate)
 ```
 
-265 tests deterministas + 2 *smokes* con cuota (marcados `skip` salvo opt-in). El grafo de
+268 tests deterministas + 2 *smokes* con cuota (marcados `skip` salvo opt-in). El grafo de
 imports se mantiene sin ciclos y con fronteras declaradas en `src/.gb-boundaries`: por
 ejemplo, el evaluador **no** puede importar `crisol`/`despliegue`/`aplicador` (no manda), y
 el generador de ataques **no** ve la gramática (ataca a ciegas).
