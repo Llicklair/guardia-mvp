@@ -1,0 +1,5 @@
+#!/bin/sh
+# Enganchado UNA vez con: git config core.hooksPath .githooks
+pytest -q || exit 1
+gb graph . --gate --since HEAD || exit 1
+gb check --staged --brief
