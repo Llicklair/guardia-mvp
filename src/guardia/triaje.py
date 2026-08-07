@@ -69,10 +69,16 @@ class ProveedorHeuristico:
     Regla: si el incidente muestra conexiones salientes a una IP externa, propone
     cortar ese egress — la contencion mas directa y la que pasa los gates (filtro de
     red replayable). Es deliberadamente simple: su trabajo es existir siempre y dar el
-    minimo util, no ser listo. Lo listo es lo que el LLM tendra que superar."""
+    minimo util, no ser listo. Lo listo es lo que el LLM tendra que superar.
+
+    Con varias redes externas candidatas elige por evidencia estructural, no por
+    orden alfabetico (ver `_prioridad`): el desempate arbitrario era un desvio medido
+    — bastaba provocar una conexion a una IP que ordenase antes para que el heuristico
+    cortara al inocente y dejara el C2 abierto."""
 
     def sugerir(self, contexto: ContextoIncidente) -> str:
         externas: dict[IPv4Network, set[int]] = {}
+        trafico: dict[IPv4Network, int] = {}
         for evento in contexto.incidente.eventos:
             if (
                 isinstance(evento, EventoRed)
@@ -81,11 +87,12 @@ class ProveedorHeuristico:
             ):
                 red = IPv4Network(f"{evento.ip}/24", strict=False)
                 externas.setdefault(red, set()).add(evento.puerto)
+                trafico[red] = trafico.get(red, 0) + 1
         if not externas:
             # Sin egress externo no hay contencion evidente y determinista que ofrecer.
             # Devolver algo inventado seria peor que devolver nada: que decida el LLM.
             return json.dumps({"sin_propuesta": True})
-        red = sorted(externas, key=str)[0]
+        red = min(externas, key=lambda r: _prioridad(r, externas[r], trafico[r]))
         puertos = sorted(externas[red])
         return json.dumps(
             {
@@ -178,6 +185,26 @@ class Triaje:
             "triaje_propuesta", "ia", incidente=incidente.nombre, propuesta=propuesta.id
         )
         return propuesta
+
+
+# Puertos donde vive el grueso del trafico saliente legitimo (ssh, correo, dns,
+# http/https, ntp, dot, imaps). Un C2 suele delatarse fuera de ellos; un senuelo
+# barato suele imitarlos.
+_PUERTOS_UBICUOS = frozenset({22, 25, 53, 80, 123, 443, 587, 853, 993})
+
+
+def _prioridad(red: IPv4Network, puertos: set[int], eventos: int) -> tuple[int, int, str]:
+    """Orden de sospecha entre redes externas candidatas, para `min()`.
+
+    Pesa primero los puertos fuera de los ubicuos, luego el volumen de eventos, y solo
+    al final el orden lexicografico — que queda como ultimo recurso deterministico, y
+    se dice. Sube el coste del desvio: ya no basta una IP que ordene antes, el senuelo
+    tiene que imitar la forma del trafico del C2. No cierra la clase — un C2 que viva
+    en 443 o un senuelo que calque sus puertos y volumen siguen desviandolo — y la
+    defensa de verdad sigue siendo la de siempre: la propuesta no tiene autoridad y el
+    replay malicioso rechaza la que no cubre el repro."""
+    raros = sum(1 for p in puertos if p not in _PUERTOS_UBICUOS)
+    return (-raros, -eventos, str(red))
 
 
 _RANGOS_INTERNOS = (
