@@ -740,7 +740,7 @@ def construir_parser() -> argparse.ArgumentParser:
     )
     banco_ev.add_argument(
         "--pasadas",
-        type=int,
+        type=_pasadas_positivas,
         default=1,
         help="N pasadas completas para medir la estabilidad de la senal (varianza); "
         "cada una reevalua control y desviadas, asi que gasta N veces la cuota",
@@ -776,7 +776,7 @@ def construir_parser() -> argparse.ArgumentParser:
     )
     generar.add_argument(
         "--pasadas",
-        type=int,
+        type=_pasadas_positivas,
         default=1,
         help="N pasadas para medir si la negativa del modelo es estable o ruido; "
         "gasta N x objetivos la cuota, artefactos por pasada",
@@ -784,6 +784,16 @@ def construir_parser() -> argparse.ArgumentParser:
     generar.set_defaults(func=_cmd_generar_inyecciones)
 
     return parser
+
+
+def _pasadas_positivas(texto: str) -> int:
+    """--pasadas 0 o negativo caia en silencio a la rama de UNA pasada (la varianza
+    solo arranca con >1): con modelo real gastaba cuota que el usuario pidio no gastar,
+    y el plan la contaba en negativo. Se rechaza en la puerta, no se corrige."""
+    n = int(texto)
+    if n < 1:
+        raise argparse.ArgumentTypeError("hacen falta al menos 1 pasada(s) para medir")
+    return n
 
 
 def _flags_de_proveedor(sub: argparse.ArgumentParser) -> None:

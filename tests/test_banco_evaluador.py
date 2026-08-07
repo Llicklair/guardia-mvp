@@ -253,3 +253,16 @@ def test_sin_modelo_el_comando_ensena_el_plan_y_no_gasta_nada(capsys, monkeypatc
     salida = capsys.readouterr()
     assert codigo == 0
     assert f"{(1 + len(CASOS)) * 3} llamada" in salida.out
+
+
+def test_pasadas_cero_o_negativas_se_rechazan_en_la_puerta(capsys):
+    """`--pasadas 0` (y negativo) caia en silencio a la rama de UNA pasada: la varianza
+    solo arranca con >1, asi que con modelo real gastaba una pasada de cuota que el
+    usuario pidio no gastar, y el plan la contaba en negativo (-18 llamadas)."""
+    import guardia.cli as cli
+
+    for pasadas in ("0", "-3"):
+        with pytest.raises(SystemExit) as arranque:
+            cli.main(["banco-evaluador", "--pasadas", pasadas])
+        assert arranque.value.code == 2
+        assert "al menos 1 pasada" in capsys.readouterr().err

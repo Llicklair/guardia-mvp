@@ -470,3 +470,13 @@ def test_el_plan_barato_cuenta_las_pasadas(tmp_path, capsys):
     assert f"{len(ENCARGOS) * 3} llamada" in salida.out
     assert "3 pasadas" in salida.out
     assert not (tmp_path / "g").exists()
+
+
+def test_pasadas_cero_o_negativas_se_rechazan_en_la_puerta(tmp_path, capsys):
+    """Misma puerta que en banco-evaluador: sin ella, `--pasadas 0` corria UNA pasada
+    de verdad (la varianza solo arranca con >1) en vez de rechazar el sinsentido."""
+    for pasadas in ("0", "-3"):
+        with pytest.raises(SystemExit) as arranque:
+            main(["generar-inyecciones", "--salida", str(tmp_path / "g"), "--pasadas", pasadas])
+        assert arranque.value.code == 2
+        assert "al menos 1 pasada" in capsys.readouterr().err
