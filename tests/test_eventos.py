@@ -85,7 +85,41 @@ def test_la_cli_no_escupe_un_traceback_por_un_fichero_mal_tecleado(tmp_path, cap
     salida = capsys.readouterr()
 
     assert codigo == 2
-    assert "CORPUS ILEGIBLE" in salida.err
+    assert "ENTRADA ILEGIBLE" in salida.err
+    assert "corpus" in salida.err  # el mensaje dice CUAL de las dos entradas fallo
+    assert "Traceback" not in salida.err
+
+
+def test_la_propuesta_ilegible_tampoco_escupe_un_traceback(tmp_path, capsys):
+    """Hermano del anterior por la otra ruta que entra por la linea de mando: el
+    fichero de PROPUESTA. Lo destapo gb capturando el crash de `crisol no-existe.json`
+    mientras se verificaba el arreglo del corpus — misma clase, otro camino."""
+    codigo = main(
+        ["--control", str(tmp_path / "control"), "crisol", str(tmp_path / "no-existe.json")]
+    )
+    salida = capsys.readouterr()
+
+    assert codigo == 2
+    assert "ENTRADA ILEGIBLE" in salida.err
+    assert "Traceback" not in salida.err
+
+
+@pytest.mark.parametrize("comando", ["informe", "enforcement"])
+def test_los_comandos_sin_banderas_no_revientan(comando, tmp_path, monkeypatch, capsys):
+    """El camino POR DEFECTO de `informe` y `enforcement` estaba roto: los dos hacian
+    `Path(args.control)` y `--control` vale None mientras nadie escriba la bandera, asi
+    que `guardia informe` a secas moria con TypeError. Solo funcionaban si teclesbas
+    `--control`, que es justo al reves de como debe ser (regla del defecto: lo correcto
+    es lo que sale sin escribir nada). Quien resuelve el defecto es el Interruptor.
+
+    Se aisla con GUARDIA_CONTROL_DIR para no escribir en el directorio de control real
+    de la maquina, que es precisamente el que el bug alcanzaba."""
+    monkeypatch.setenv("GUARDIA_CONTROL_DIR", str(tmp_path / "control"))
+
+    codigo = main([comando])
+    salida = capsys.readouterr()
+
+    assert codigo == 0, salida.err
     assert "Traceback" not in salida.err
 
 

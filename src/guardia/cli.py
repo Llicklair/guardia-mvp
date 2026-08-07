@@ -44,6 +44,26 @@ INCIDENTE_POR_DEFECTO = RAIZ / "corpus" / "eventos" / "incidente-0001.jsonl"
 INYECCIONES_POR_DEFECTO = RAIZ / "corpus" / "inyecciones"
 
 
+class EntradaIlegible(Exception):
+    """No se pudo leer el fichero de propuesta que se paso por la linea de mando.
+
+    Hermana de `CorpusIlegible` y por el mismo motivo: la propuesta tambien es dato
+    hostil que entra por una ruta, y un fichero mal tecleado tiene que salir como un
+    error de uso, no como un traceback."""
+
+
+def _texto_de_propuesta(args: argparse.Namespace) -> str:
+    """La propuesta, del fichero o de stdin. Un solo sitio para los tres comandos que
+    la leen (`validar`, `crisol`, `desplegar`): el tratamiento del fichero ausente es
+    identico en los tres y repetirlo es garantizar que el proximo se olvide."""
+    if not args.fichero:
+        return sys.stdin.read()
+    try:
+        return Path(args.fichero).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        raise EntradaIlegible(f"no se puede leer la propuesta '{args.fichero}': {e}") from e
+
+
 def _interruptor(args: argparse.Namespace) -> Interruptor:
     return Interruptor(args.control)
 
@@ -113,7 +133,9 @@ def _cmd_informe(args: argparse.Namespace) -> int:
     entradas = list(auditoria.leer())
     veredicto = auditoria.verificar()
     generado = datetime.now(UTC).isoformat(timespec="seconds")
-    salida = Path(args.salida) if args.salida else Path(args.control) / "informe.html"
+    # `interruptor.directorio` y no `args.control`: el flag es None cuando no se pasa y
+    # quien resuelve el defecto (GUARDIA_CONTROL_DIR o el del sistema) es el Interruptor.
+    salida = Path(args.salida) if args.salida else interruptor.directorio / "informe.html"
     salida.parent.mkdir(parents=True, exist_ok=True)
     salida.write_text(
         informe_html.render(interruptor.estado(), entradas, veredicto, generado),
@@ -137,10 +159,12 @@ def _cmd_enforcement(args: argparse.Namespace) -> int:
     va a cortar. Por defecto DRY-RUN: imprime el ruleset y no toca el sistema. Enforcar de
     verdad exige --aplicar (y Linux con nft + privilegios); es a proposito que lo barato
     salga sin banderas y lo que toca el sistema se pida a mano."""
+    # Mismo motivo que en `informe`: el defecto del directorio de control lo resuelve el
+    # Interruptor, no `args.control`, que es None mientras nadie escriba la bandera.
     ruta = (
         Path(args.politica)
         if args.politica
-        else Path(args.control) / "despliegue" / NOMBRE_PRODUCCION
+        else _interruptor(args).directorio / "despliegue" / NOMBRE_PRODUCCION
     )
     politicas = Aplicador(ruta).activas()
     resultado = nftables.aplicar(politicas, dry_run=not args.aplicar)
@@ -160,7 +184,7 @@ def _cmd_validar(args: argparse.Namespace) -> int:
     No aplica nada. Aplicar exige ademas los cuatro gates (regla 6), que son la
     siguiente pieza del MVP.
     """
-    texto = Path(args.fichero).read_text(encoding="utf-8") if args.fichero else sys.stdin.read()
+    texto = _texto_de_propuesta(args)
     try:
         propuesta = desde_json(texto)
     except PropuestaInvalida as e:
@@ -180,7 +204,7 @@ def _cmd_validar(args: argparse.Namespace) -> int:
 def _cmd_crisol(args: argparse.Namespace) -> int:
     """Corre la propuesta por los cuatro gates de la regla 6. No aplica a produccion:
     trabaja sobre un sandbox y deja un veredicto. Sin PASS, nada se aplica."""
-    texto = Path(args.fichero).read_text(encoding="utf-8") if args.fichero else sys.stdin.read()
+    texto = _texto_de_propuesta(args)
     try:
         propuesta = desde_json(texto)
     except PropuestaInvalida as e:
@@ -216,7 +240,7 @@ def _despliegue(args: argparse.Namespace, sufijo: str = "") -> Despliegue:
 def _cmd_desplegar(args: argparse.Namespace) -> int:
     """Crisol + aplicacion real: si pasa los gates y no excede la tasa, se aplica en
     canary con dead-man's switch. Cierra el ciclo T3."""
-    texto = Path(args.fichero).read_text(encoding="utf-8") if args.fichero else sys.stdin.read()
+    texto = _texto_de_propuesta(args)
     try:
         propuesta = desde_json(texto)
     except PropuestaInvalida as e:
@@ -780,13 +804,13 @@ def main(argv: list[str] | None = None) -> int:
     args = construir_parser().parse_args(argv)
     try:
         return int(args.func(args))
-    except CorpusIlegible as e:
-        # Un corpus que falta es error de USO, no un fallo del sistema: se dice y se
+    except (CorpusIlegible, EntradaIlegible) as e:
+        # Un fichero que falta es error de USO, no un fallo del sistema: se dice y se
         # sale, sin traceback. Va aqui y no en cada subcomando a proposito — el
         # tratamiento es el mismo para todos y repetirlo garantiza olvidarlo en el
         # proximo. Mismo codigo (2) que una propuesta que no encaja: la entrada que
         # nos dieron no sirve.
-        print(f"CORPUS ILEGIBLE: {e}", file=sys.stderr)
+        print(f"ENTRADA ILEGIBLE: {e}", file=sys.stderr)
         return 2
     except ModeloProhibido as e:
         # Se presenta como un rechazo con su motivo, no como un traceback ni como un
