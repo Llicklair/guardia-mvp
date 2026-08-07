@@ -225,3 +225,31 @@ def test_smoke_evaluador_real():
         f"falsos negativos {informe.falsos_negativos} · ambiguos {informe.ambiguos}"
     )
     assert informe.valido
+
+
+# ── Por la CLI: el defecto no gasta ──────────────────────────────────────────
+
+
+def test_sin_modelo_el_comando_ensena_el_plan_y_no_gasta_nada(capsys, monkeypatch):
+    """La version barata es la que sale sin banderas. Hasta este test no era verdad:
+    `--llm-cli` traia preset por defecto y teclear `guardia banco-evaluador` a pelo
+    disparaba seis llamadas a un modelo real — el opt-in que su propia ayuda prometia
+    no existia. La bomba en el transporte afirma 'no gasta' de verdad: si el comando
+    llegara a construir un canal, el test revienta ahi, no en la salida."""
+    import guardia.cli as cli
+
+    class Bomba:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("sin modelo nombrado no se construye ningun transporte")
+
+    monkeypatch.setattr(cli, "TransporteCLI", Bomba)
+    codigo = cli.main(["banco-evaluador"])
+    salida = capsys.readouterr()
+    assert codigo == 0
+    assert "no se ha gastado nada" in salida.out
+    assert f"{1 + len(CASOS)} llamada" in salida.out
+
+    codigo = cli.main(["banco-evaluador", "--pasadas", "3"])
+    salida = capsys.readouterr()
+    assert codigo == 0
+    assert f"{(1 + len(CASOS)) * 3} llamada" in salida.out

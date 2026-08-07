@@ -20,14 +20,14 @@ from . import nftables
 from .actores import Actor, SinAutoridad
 from .aplicador import Aplicador
 from .banco import Banco
-from .banco_evaluador import BancoEvaluador
+from .banco_evaluador import CASOS, BancoEvaluador
 from .crisol import Crisol, Resultado
 from .despliegue import NOMBRE_PRODUCCION, Despliegue, Estado
 from .evaluador import EvaluadorAdversarial
 from .eventos import CorpusIlegible, cargar
 from .generador import ENCARGOS, GeneradorCiego, Rechazo, cargar_base
 from .invariantes import Config, comprobar
-from .kill_switch import Interruptor
+from .kill_switch import ControlInvalido, Interruptor
 from .politica import PropuestaInvalida, desde_json
 from .transporte import (
     COMANDOS_CLI,
@@ -485,11 +485,24 @@ def _mostrar_dictamen(args: argparse.Namespace, propuesta, interruptor) -> None:
 
 def _cmd_banco_evaluador(args: argparse.Namespace) -> int:
     """Mide si el evaluador adversarial DISTINGUE una propuesta desviada de la correcta
-    (ADR 0007). Invoca un modelo real y gasta cuota: es opt-in, como `banco --proveedor
-    llm`. No es un gate — reporta una matriz de confusion sobre una senal advisory. Exit
-    0 si la medicion se completo; 9 solo si el canal cayo y no se pudo medir."""
+    (ADR 0007). **El defecto no gasta cuota: enseña el plan y para** — cada pasada son
+    seis llamadas a un modelo real (control + cinco desviadas), y un comando caro que
+    arranca solo por teclearlo acaba comiendose una tarde. Ejecutar de verdad exige
+    nombrar el modelo, como en `generar-inyecciones`. No es un gate — reporta una matriz
+    de confusion sobre una senal advisory. Exit 0 si la medicion se completo; 9 solo si
+    el canal cayo y no se pudo medir."""
+    comando = _comando_llm(args)
+    if comando is None:
+        pasadas = f" x {args.pasadas} pasadas" if args.pasadas > 1 else ""
+        llamadas = (1 + len(CASOS)) * args.pasadas
+        print(
+            f"PLAN (no se ha gastado nada): {llamadas} llamada(s){pasadas} a un modelo "
+            f"real — control (correcta) + {len(CASOS)} desviada(s) por pasada"
+        )
+        print("\nPara ejecutarlo, nombra el modelo:\n  guardia banco-evaluador --llm-cli claude")
+        return 0
     interruptor = _interruptor(args)
-    evaluador = EvaluadorAdversarial(TransporteCLI(_comando_llm(args)), interruptor.auditoria)
+    evaluador = EvaluadorAdversarial(TransporteCLI(comando), interruptor.auditoria)
     if args.pasadas > 1:
         return _banco_evaluador_varianza(BancoEvaluador(evaluador), args.pasadas)
     informe = BancoEvaluador(evaluador).correr()
@@ -715,8 +728,9 @@ def construir_parser() -> argparse.ArgumentParser:
     banco_ev.add_argument(
         "--llm-cli",
         choices=sorted(COMANDOS_CLI),
-        default="claude",
-        help="CLI de modelo para el evaluador (invoca un modelo real y gasta cuota; opt-in)",
+        default=None,
+        help="CLI de modelo para el evaluador (invoca un modelo real y gasta cuota). "
+        "Sin modelo nombrado, el comando enseña el plan y no gasta nada",
     )
     banco_ev.add_argument(
         "--comando-llm",
@@ -811,6 +825,13 @@ def main(argv: list[str] | None = None) -> int:
         # proximo. Mismo codigo (2) que una propuesta que no encaja: la entrada que
         # nos dieron no sirve.
         print(f"ENTRADA ILEGIBLE: {e}", file=sys.stderr)
+        return 2
+    except ControlInvalido as e:
+        # La otra mitad del mismo contrato: la ruta de CONTROL tampoco es del sistema,
+        # nos la dio quien invoca (--control o GUARDIA_CONTROL_DIR). Prefijo propio
+        # porque la correccion es distinta: no es "dame otro fichero", es "esa ruta
+        # no puede ser un directorio de control".
+        print(f"CONTROL INVALIDO: {e}", file=sys.stderr)
         return 2
     except ModeloProhibido as e:
         # Se presenta como un rechazo con su motivo, no como un traceback ni como un

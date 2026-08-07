@@ -98,3 +98,33 @@ def test_congelar_es_idempotente(interruptor):
     interruptor.congelar(Actor.HUMANO, "segunda")
 
     assert interruptor.estado().motivo == "segunda"
+
+
+def test_ruta_de_control_que_es_un_fichero_es_error_de_dominio(tmp_path):
+    """La propiedad de frontera, ahora tambien en la ruta de control: toda ruta →
+    Interruptor valido O ControlInvalido, nunca otra excepcion. `mkdir(exist_ok=True)`
+    solo tolera directorios: apuntar --control a un fichero salia como FileExistsError
+    crudo (lo capturo gb en el barrido del 7-ago por tres rutas distintas)."""
+    from guardia.kill_switch import ControlInvalido
+
+    fichero = tmp_path / "no-soy-directorio.json"
+    fichero.write_text("{}", encoding="utf-8")
+
+    with pytest.raises(ControlInvalido):
+        Interruptor(fichero)
+    with pytest.raises(ControlInvalido):
+        Interruptor(fichero / "hijo-de-un-fichero")
+
+
+def test_por_la_cli_control_invalido_se_dice_sin_traceback(tmp_path, capsys):
+    """El mismo caso como lo vive quien teclea: exit 2 y un motivo, no un traceback."""
+    from guardia.cli import main
+
+    fichero = tmp_path / "estado-que-no-es-dir.json"
+    fichero.write_text("{}", encoding="utf-8")
+
+    codigo = main(["--control", str(fichero), "estado"])
+    salida = capsys.readouterr()
+    assert codigo == 2
+    assert "CONTROL INVALIDO" in salida.err
+    assert "Traceback" not in salida.err

@@ -63,12 +63,25 @@ class CapaCongelada(RuntimeError):
         )
 
 
+class ControlInvalido(ValueError):
+    """La ruta de control no puede ser un directorio (existe como fichero, el padre es
+    un fichero, o no hay permisos). No es fail-closed —eso es 'estado ilegible' y
+    congela— es 'no hay donde mirar el estado': quien dio la ruta puede corregirla.
+    Error de dominio a proposito: `mkdir(exist_ok=True)` solo tolera directorios, y un
+    `--control fichero.json` tecleado por error salia como traceback crudo."""
+
+
 class Interruptor:
     """El interruptor de emergencia sobre un directorio de control."""
 
     def __init__(self, directorio: Path | str | None = None) -> None:
         self.directorio = Path(directorio or directorio_por_defecto())
-        self.directorio.mkdir(parents=True, exist_ok=True)
+        try:
+            self.directorio.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            raise ControlInvalido(
+                f"el directorio de control '{self.directorio}' no se puede usar: {e}"
+            ) from e
         self.ruta_estado = self.directorio / NOMBRE_ESTADO
         self.auditoria = Auditoria(self.directorio / NOMBRE_AUDITORIA)
 
