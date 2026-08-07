@@ -30,6 +30,7 @@ from typing import Protocol
 
 from .auditoria import Auditoria
 from .eventos import Corpus, EventoRed
+from .json_hostil import demasiado_anidado
 from .politica import Propuesta, PropuestaInvalida, desde_json
 from .transporte import Transporte, extraer_json
 
@@ -228,7 +229,11 @@ def _es_externa(ip: IPv4Address) -> bool:
 
 
 def _es_sin_propuesta(crudo: str) -> bool:
+    if demasiado_anidado(crudo):
+        # Salida de LLM = texto hostil (inyeccion): el anidado profundo reventaria
+        # la pila dentro de json.loads ANTES de llegar al guardia de politica.
+        return False
     try:
         return bool(json.loads(crudo).get("sin_propuesta"))
-    except (json.JSONDecodeError, AttributeError):
+    except (json.JSONDecodeError, AttributeError, RecursionError):
         return False

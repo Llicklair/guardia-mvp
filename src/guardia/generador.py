@@ -51,6 +51,7 @@ from .eventos import (
     cargar,
     desde_dict,
 )
+from .json_hostil import demasiado_anidado
 from .transporte import Transporte, TransporteFallido
 
 _MAX_EVENTOS = 40
@@ -346,9 +347,13 @@ def _lineas_jsonl(texto: str) -> tuple[str, ...]:
         limpia = linea.strip().rstrip(",")
         if not limpia.startswith("{"):
             continue
+        if demasiado_anidado(limpia):
+            # El modelo escribe texto hostil por encargo: una linea con anidado
+            # profundo reventaria la pila dentro de json.loads.
+            continue
         try:
             objeto = json.loads(limpia)
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, RecursionError):
             continue
         if isinstance(objeto, dict):
             lineas.append(json.dumps(objeto, ensure_ascii=False))

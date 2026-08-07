@@ -18,6 +18,8 @@ from ipaddress import IPv4Address, ip_address
 from pathlib import Path
 from typing import Any
 
+from .json_hostil import demasiado_anidado
+
 _MAX = 512
 
 
@@ -173,7 +175,16 @@ def cargar(ruta: Path | str, nombre: str = "") -> Corpus:
         if not linea.strip():
             continue
         try:
+            if demasiado_anidado(linea):
+                # El anidado hostil revienta la pila DENTRO de json.loads y el
+                # RecursionError se saltaria el contrato de este bucle (linea mala
+                # -> saltada con constancia, nunca una excepcion que tumbe el ciclo).
+                raise EventoInvalido("JSON demasiado anidado")
             eventos.append(desde_dict(json.loads(linea)))
         except (json.JSONDecodeError, EventoInvalido) as e:
             saltadas.append(f"linea {numero}: {e}")
+        except RecursionError:
+            # Segunda linea, como en politica: si el escaner juzgara mal una entrada,
+            # la propiedad se mantiene.
+            saltadas.append(f"linea {numero}: JSON demasiado anidado")
     return Corpus(nombre or ruta.stem, tuple(eventos), tuple(saltadas))

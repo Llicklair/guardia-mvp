@@ -24,6 +24,8 @@ import subprocess
 from dataclasses import dataclass
 from typing import Protocol
 
+from .json_hostil import demasiado_anidado
+
 
 class TransporteFallido(Exception):
     """El canal no respondio: binario ausente, timeout o salida != 0.
@@ -146,12 +148,18 @@ def extraer_json(texto: str) -> str:
     que corresponda, que sigue descartando cualquier desviacion. Si no hay ningun
     objeto, se devuelve el texto tal cual para que la validacion lo rechace y el
     descarte quede auditado."""
+    if demasiado_anidado(texto):
+        # La respuesta del modelo es texto hostil (inyeccion): con anidado profundo
+        # `raw_decode` revienta la pila igual que `json.loads`, y esta es la puerta
+        # comun por la que pasa TODA salida de modelo antes de triaje o evaluador.
+        # Se devuelve tal cual para que la validacion de destino lo rechace auditado.
+        return texto
     decodificador = json.JSONDecoder()
     for i, caracter in enumerate(texto):
         if caracter == "{":
             try:
                 objeto, _ = decodificador.raw_decode(texto[i:])
-            except json.JSONDecodeError:
+            except (json.JSONDecodeError, RecursionError):
                 continue
             if isinstance(objeto, dict):
                 return json.dumps(objeto)

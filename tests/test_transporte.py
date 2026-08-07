@@ -26,9 +26,20 @@ from guardia.transporte import (
     TransporteCLI,
     TransporteFallido,
     comprobar_modelo,
+    extraer_json,
 )
 
 _PYTHON = sys.executable
+
+
+def test_extraer_json_no_revienta_con_anidado_hostil():
+    """`extraer_json` es la puerta comun por la que pasa TODA salida de modelo antes
+    de triaje o evaluador, y `raw_decode` revienta la pila igual que `json.loads`:
+    una inyeccion que dictara 20000 corchetes tumbaba el ciclo aqui, antes de llegar
+    a ningun guardia de destino. Devolver el texto tal cual deja que la validacion
+    de destino lo rechace con constancia."""
+    hostil = '{"a": ' + "[" * 20_000
+    assert extraer_json(hostil) == hostil
 
 
 # ── El defecto, que es donde vive la norma ───────────────────────────────────

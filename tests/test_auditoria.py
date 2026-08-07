@@ -89,6 +89,17 @@ def test_una_linea_ilegible_es_cadena_rota(auditoria):
     assert not auditoria.verificar().intacta
 
 
+def test_una_linea_manipulada_con_anidado_hostil_es_cadena_rota(auditoria):
+    """El detector no puede morir con lo que debe detectar: una linea de JSON anidado
+    metida a mano reventaba la pila dentro de json.loads y el veredicto de manipulacion
+    nunca llegaba a salir — RecursionError crudo en vez de cadena rota."""
+    auditoria.registrar("evento", "humano")
+    with auditoria.ruta.open("a", encoding="utf-8") as f:
+        f.write("[" * 20_000 + "\n")
+
+    assert not auditoria.verificar().intacta
+
+
 def test_el_orden_de_las_claves_no_cambia_el_hash():
     """El hash se calcula sobre serializacion canonica; si dependiera del orden de
     insercion del dict, la verificacion fallaria segun como se hubiera construido el

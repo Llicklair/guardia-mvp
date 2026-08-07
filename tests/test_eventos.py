@@ -47,6 +47,21 @@ def test_una_linea_mala_se_salta_pero_el_corpus_se_carga(tmp_path):
     assert len(corpus.saltadas) == 1
 
 
+def test_una_linea_con_anidado_hostil_se_salta_sin_reventar(tmp_path):
+    """20000 corchetes son 40 KB que revientan la pila DENTRO de json.loads: el
+    RecursionError salia crudo y una sola linea hostil de telemetria tumbaba el ciclo
+    entero en vez de saltarse con constancia. Mismo agujero (y mismo guardia) que el
+    fuzzing destapo en la gramatica de politica."""
+    ruta = tmp_path / "inc.jsonl"
+    ruta.write_text(_LINEA + "\n" + "[" * 20_000 + "\n", encoding="utf-8")
+
+    corpus = cargar(ruta)
+
+    assert len(corpus) == 1
+    assert len(corpus.saltadas) == 1
+    assert "anidado" in corpus.saltadas[0]
+
+
 @pytest.mark.parametrize(
     "preparar",
     [

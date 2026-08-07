@@ -98,6 +98,30 @@ guardia.transporte -/-> guardia.eventos
 guardia.transporte -/-> guardia.auditoria
 guardia.transporte -/-> guardia.cli
 
+# El guardia de JSON hostil es una hoja pura: cinco consumidores que no se conocen
+# entre si (politica, eventos, triaje, evaluador, generador, auditoria) lo comparten
+# precisamente porque el no conoce a ninguno. Si importara dominio, dejaria de poder
+# vivir debajo de todos.
+guardia.json_hostil -/-> guardia.politica
+guardia.json_hostil -/-> guardia.eventos
+guardia.json_hostil -/-> guardia.triaje
+guardia.json_hostil -/-> guardia.evaluador
+guardia.json_hostil -/-> guardia.generador
+guardia.json_hostil -/-> guardia.auditoria
+guardia.json_hostil -/-> guardia.transporte
+guardia.json_hostil -/-> guardia.actores
+guardia.json_hostil -/-> guardia.kill_switch
+guardia.json_hostil -/-> guardia.invariantes
+guardia.json_hostil -/-> guardia.crisol
+guardia.json_hostil -/-> guardia.motor
+guardia.json_hostil -/-> guardia.aplicador
+guardia.json_hostil -/-> guardia.despliegue
+guardia.json_hostil -/-> guardia.banco
+guardia.json_hostil -/-> guardia.banco_evaluador
+guardia.json_hostil -/-> guardia.nftables
+guardia.json_hostil -/-> guardia.informe
+guardia.json_hostil -/-> guardia.cli
+
 # El evaluador adversarial (regla 10, ADR 0007) es ADVISORY: mira una propuesta y
 # emite objeciones. Que no pueda importar crisol/despliegue/aplicador es lo que hace
 # imposible por construccion que su dictamen se convierta en un veredicto.

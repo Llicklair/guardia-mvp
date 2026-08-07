@@ -30,6 +30,7 @@ import json
 from dataclasses import dataclass
 
 from .auditoria import Auditoria
+from .json_hostil import demasiado_anidado
 from .politica import Propuesta
 from .transporte import Transporte, TransporteFallido, extraer_json
 
@@ -162,6 +163,10 @@ class EvaluadorAdversarial:
             crudo = extraer_json(self.transporte.invocar(prompt))
         except TransporteFallido as e:
             return Objecion(lente.nombre, False, f"(sin dictamen: {e})")
+        if demasiado_anidado(crudo):
+            # La respuesta del modelo es texto hostil (inyeccion): el anidado
+            # profundo reventaria la pila dentro de json.loads.
+            return Objecion(lente.nombre, False, "(respuesta ilegible)")
         try:
             datos = json.loads(crudo)
             return Objecion(
@@ -169,7 +174,7 @@ class EvaluadorAdversarial:
                 bool(datos.get("objecion")),
                 str(datos.get("motivo", ""))[:300],
             )
-        except (json.JSONDecodeError, AttributeError):
+        except (json.JSONDecodeError, AttributeError, RecursionError):
             # Una respuesta ilegible NO se interpreta como objecion: convertir ruido
             # en alarma es como se entrena a un operador a ignorar las alarmas.
             return Objecion(lente.nombre, False, "(respuesta ilegible)")

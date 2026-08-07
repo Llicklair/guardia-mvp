@@ -17,6 +17,8 @@ from enum import Enum
 from ipaddress import IPv4Network, ip_network
 from typing import Any
 
+from .json_hostil import demasiado_anidado
+
 
 class TipoPolitica(str, Enum):
     """Que clase de artefacto declarativo propone la IA. Conjunto cerrado."""
@@ -194,45 +196,11 @@ def desde_dict(crudo: Any) -> Propuesta:
     )
 
 
-# Una propuesta legitima anida 3 niveles (objeto -> cuerpo -> listas). 32 deja margen
-# de sobra sin dejar que un anidado hostil queme pila o CPU en json.loads.
-_PROFUNDIDAD_MAXIMA = 32
-
-
-def _demasiado_anidado(texto: str) -> bool:
-    """Cuenta profundidad estructural sin parsear: O(n) con salida temprana.
-
-    Los corchetes dentro de un string JSON no son estructura — sin distinguirlos,
-    una descripcion con corchetes seria un falso positivo y el guardia rechazaria
-    propuestas validas.
-    """
-    profundidad = 0
-    en_cadena = False
-    escapado = False
-    for c in texto:
-        if en_cadena:
-            if escapado:
-                escapado = False
-            elif c == "\\":
-                escapado = True
-            elif c == '"':
-                en_cadena = False
-        elif c == '"':
-            en_cadena = True
-        elif c in "[{":
-            profundidad += 1
-            if profundidad > _PROFUNDIDAD_MAXIMA:
-                return True
-        elif c in "]}":
-            profundidad -= 1
-    return False
-
-
 def desde_json(texto: str) -> Propuesta:
     """Punto de entrada para la salida cruda del LLM. Texto hostil por defecto."""
     if len(texto) > 64_000:
         raise PropuestaInvalida("la propuesta excede el tamano maximo")
-    if _demasiado_anidado(texto):
+    if demasiado_anidado(texto):
         # El guardia de tamano no para el anidado hostil: 20000 corchetes son 40 KB.
         # Y profundo-pero-bajo-el-limite-de-recursion tampoco peta: se parsea entero
         # y gasta CPU gratis para el atacante. Se corta ANTES de parsear.

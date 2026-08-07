@@ -210,6 +210,14 @@ def test_una_respuesta_de_verdad_vacia_es_otra_cosa(base):
     assert generacion.admision.clase is Rechazo.VACIA
 
 
+def test_una_linea_con_anidado_hostil_no_revienta_el_recorte(base):
+    """El modelo escribe texto hostil por encargo: una linea de JSON anidado reventaba
+    la pila en el recorte (`_solo_lineas_json` parsea cada candidata). Se ignora como
+    cualquier otra linea que no es un evento, y la admision decide con lo que queda."""
+    generacion = _generador('{"a": ' + "[" * 20_000, base).generar(ENCARGOS[0])
+    assert not generacion.admision.admitido
+
+
 def test_rechaza_un_volcado_desproporcionado(base):
     diluvio = [dict(_ATAQUE[0], etiqueta=f"ruido {i}") for i in range(50)] + [_ATAQUE[1]]
     generacion = _generador(_jsonl(diluvio), base).generar(ENCARGOS[0])

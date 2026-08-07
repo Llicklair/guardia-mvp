@@ -80,6 +80,14 @@ def test_una_respuesta_ilegible_no_se_cuenta_como_objecion():
     assert dictamen.limpio
 
 
+def test_una_respuesta_con_anidado_hostil_es_ilegible_no_un_crash():
+    """La respuesta del modelo es texto hostil (una inyeccion puede dictarsela): el
+    anidado profundo reventaba la pila dentro de json.loads — RecursionError crudo en
+    una senal que promete no parar nada nunca."""
+    dictamen = EvaluadorAdversarial(TransporteGuion('{"a": ' + "[" * 20_000)).evaluar(_PROPUESTA)
+    assert dictamen.limpio
+
+
 def test_un_evaluador_caido_no_para_nada():
     """TransporteFallido se traduce en 'sin dictamen', nunca en un bloqueo: una senal
     advisory que se convierte en punto de fallo es peor que no tenerla."""

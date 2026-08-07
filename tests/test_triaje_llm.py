@@ -100,6 +100,17 @@ def test_una_respuesta_sin_json_se_descarta_y_queda_auditada(incidente, audit):
     assert "triaje_descartado" in [e.evento for e in audit.leer()]
 
 
+def test_una_respuesta_con_anidado_hostil_se_descarta_sin_reventar(incidente, audit):
+    """El caso que motivo el guardia de politica, recorrido por el camino REAL del
+    triaje: una inyeccion hace al modelo emitir JSON anidado y la pila reventaba en
+    extraer_json o en _es_sin_propuesta antes de llegar a la gramatica. Regla 3: se
+    descarta con constancia, nunca se cuelga la respuesta a un incidente."""
+    hostil = '{"a": ' + "[" * 20_000
+    propuesta = Triaje(ProveedorLLM(TransporteFalso(hostil)), audit).proponer(incidente)
+    assert propuesta is None
+    assert "triaje_descartado" in [e.evento for e in audit.leer()]
+
+
 def test_el_llm_puede_no_proponer_nada(incidente, audit):
     propuesta = Triaje(ProveedorLLM(TransporteFalso('{"sin_propuesta": true}')), audit).proponer(
         incidente

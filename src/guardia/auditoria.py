@@ -126,7 +126,10 @@ class Auditoria:
                         previo=crudo["previo"],
                         hash=crudo["hash"],
                     )
-                except (json.JSONDecodeError, KeyError, TypeError) as e:
+                except (json.JSONDecodeError, KeyError, TypeError, RecursionError) as e:
+                    # RecursionError incluido: una linea manipulada con JSON anidado
+                    # mataba al detector con la pila en vez de dar CadenaRota — el
+                    # veredicto de manipulacion debe salir, no una excepcion cruda.
                     raise CadenaRota(f"linea {numero} ilegible: {e}") from e
 
     def verificar(self) -> Veredicto:
