@@ -1,0 +1,1054 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>mapa · src</title>
+<style>
+  /* Oscuro siempre, a proposito: la paleta neon esta diseniada para negro y en
+     claro se lava (comprobado en captura real). Compromiso visual, no descuido. */
+  :root{--fondo:#0a0d14;--tinta:#e8edf3;--suave:#7d8b9c;--linea:#1e2836;--panel:#111722}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--fondo);color:var(--tinta);overflow:hidden;
+       font:13px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+  header{position:fixed;top:0;left:0;right:0;z-index:5;padding:10px 14px;
+         background:var(--panel);border-bottom:1px solid var(--linea);
+         display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  h1{font:600 14px ui-monospace,Consolas,monospace;margin:0;letter-spacing:-.02em}
+  .meta{font:11px ui-monospace,Consolas,monospace;color:var(--suave)}
+  #estado{font:11px ui-monospace,Consolas,monospace;color:#4ade80;transition:opacity .8s}
+  input{background:var(--fondo);border:1px solid var(--linea);color:var(--tinta);
+        border-radius:4px;padding:5px 9px;font:12px ui-monospace,Consolas,monospace;width:210px}
+  input:focus{outline:2px solid #7c5cff;outline-offset:1px}
+  button{background:var(--fondo);border:1px solid var(--linea);color:var(--suave);
+         border-radius:4px;padding:4px 9px;font:12px ui-monospace,Consolas,monospace;cursor:pointer}
+  button:hover{color:var(--tinta);border-color:var(--suave)}
+  .leyenda{display:flex;gap:10px;flex-wrap:wrap;margin-left:auto;
+           font:10px ui-monospace,Consolas,monospace;color:var(--suave)}
+  .leyenda span{display:flex;align-items:center;gap:4px}
+  .leyenda i{width:8px;height:8px;border-radius:50%;display:inline-block}
+  /* Cada entrada se dibuja CON LA MARCA QUE USA EL LIENZO. Con todas como punto
+     relleno, la leyenda prometia un nodo naranja solido para "capturada" y lo que
+     hay en el mapa es un aro discontinuo: buscabas algo que no existe. */
+  .leyenda i.aro{background:transparent;border:1.6px dashed currentColor;
+                 width:9px;height:9px}
+  .leyenda i.linea{width:14px;height:0;border-radius:0;border-top:2px solid currentColor}
+  /* Agente: aro SOLIDO del color del agente alrededor del nodo — la marca del
+     lienzo. Distinto del aro discontinuo (ciclo del error) y del halo difuso
+     (capa de cambio). */
+  .leyenda i.agente{background:#64748b;border:2px solid currentColor;width:7px;height:7px}
+  canvas{display:block;cursor:grab}
+  canvas.arrastrando{cursor:grabbing}
+  /* A la DERECHA y alto: en hover es una vista de paso; al hacer clic queda
+     fijado y el hover deja de cambiarlo, para poder leerlo con calma mientras
+     se mira otra cosa del mapa. */
+  #ficha{position:fixed;top:92px;right:12px;z-index:5;background:var(--panel);
+         border:1px solid var(--linea);border-radius:6px;padding:10px 13px;width:340px;
+         max-height:calc(100vh - 120px);overflow-y:auto;opacity:.93;
+         font:12px ui-monospace,Consolas,monospace;display:none}
+  #ficha.fijado{opacity:1;border-color:#7c5cff;box-shadow:0 8px 28px rgba(0,0,0,.55)}
+  #ficha b{color:var(--tinta)} #ficha span{color:var(--suave)}
+  #ficha .cerrar{float:right;margin-left:8px;cursor:pointer;color:var(--suave);
+                 font-weight:700;line-height:1}
+  #ficha .cerrar:hover{color:var(--tinta)}
+  #ficha .pista{display:block;margin-top:7px;padding-top:6px;
+                border-top:1px solid var(--linea);color:var(--suave);font-size:10px}
+  /* La consola de actividad: el VIDEO, donde el mapa es la foto. Cada recarga
+     deriva eventos comparando la instantanea actual con la anterior (guardada
+     en el navegador): toco, solto, creo, se cruzo. Hechos con hora. */
+  #consola{position:fixed;bottom:12px;left:12px;z-index:5;background:var(--panel);
+           border:1px solid var(--linea);border-radius:6px;width:410px;max-height:38vh;
+           overflow-y:auto;font:11px ui-monospace,Consolas,monospace;display:none;
+           /* sin padding SUPERIOR: la cabecera sticky se pegaba 5px por debajo
+              del borde y las filas asomaban por encima */
+           padding:0 0 5px}
+  #consola .cab,#errores .cab{position:sticky;top:0;display:flex;justify-content:space-between;
+           align-items:center;padding:3px 10px;background:var(--panel);
+           border-bottom:1px solid var(--linea);color:var(--suave);cursor:move}
+  #consola .cab b,#errores .cab b{cursor:pointer;padding:0 5px;font-weight:700;user-select:none}
+  #consola .cab b:hover,#errores .cab b:hover{color:var(--tinta)}
+  #consola .fila,#errores .fila{padding:2px 10px;display:flex;gap:7px;align-items:baseline}
+  #consola .hora,#errores .hora{color:var(--suave);flex:none}
+  #consola .quien,#errores .quien{font-weight:700;flex:none}
+  #consola .que,#errores .que{color:var(--tinta);flex:none}
+  #consola .detalle,#errores .detalle{color:var(--suave);word-break:break-all}
+  /* La consola de ERRORES, separada de la de actividad a proposito: mezclarlas
+     enterraba las capturas bajo los toca/escribe de una tirada (6-ago). */
+  #errores{position:fixed;bottom:34px;right:12px;z-index:5;background:var(--panel);
+           border:1px solid var(--linea);border-radius:6px;width:380px;max-height:32vh;
+           overflow-y:auto;font:11px ui-monospace,Consolas,monospace;display:none;
+           padding:0 0 5px}
+  #pie{position:fixed;bottom:12px;right:12px;z-index:5;
+       font:10px ui-monospace,Consolas,monospace;color:var(--suave);max-width:40vw;text-align:right}
+  /* La terminal del agente: su consola cmd EN VIVO, anclada encima de sus
+     nodos. Refleja su stdout (teeado por el orquestador al lado del worktree),
+     no una interpretacion. Clic: foco en ese agente. */
+  #terminales .term{position:fixed;z-index:4;transform:translate(-50%,-100%);
+        background:#04070c;border:1px solid rgba(255,255,255,.14);border-radius:6px;
+        padding:3px 7px;width:240px;font:9px/1.5 ui-monospace,Consolas,monospace;
+        cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.5)}
+  #terminales .tcab{font-weight:700;margin-bottom:1px;font-size:10px;
+        display:flex;align-items:center;gap:4px}
+  #terminales .tdat{margin-left:auto;color:var(--suave);font-weight:400;font-size:9px}
+  #terminales .tav{color:#f59e0b;font-size:9px;white-space:nowrap;overflow:hidden;
+        text-overflow:ellipsis}
+  #terminales .term.foco{border-color:#7c5cff;box-shadow:0 8px 24px rgba(0,0,0,.6)}
+  #terminales .tbot{margin-left:6px}
+  #terminales .tcab b{cursor:pointer;color:var(--suave);font-weight:700;
+        padding:0 3px;user-select:none}
+  #terminales .tcab b:hover{color:#fff}
+  #terminales .tl{color:#9fb0c0;white-space:nowrap;overflow:hidden;
+        text-overflow:ellipsis}
+  #terminales .cur{animation:parpadeo 1s steps(1) infinite}
+  #terminales .tl.nueva{animation:caer .35s ease-out}
+  #hilos .hilo{position:fixed;z-index:3;height:0;border-top:1px dashed;
+        opacity:.55;pointer-events:none;transform-origin:0 0}
+  @keyframes parpadeo{50%{opacity:0}}
+  @keyframes caer{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+</style>
+<header>
+  <h1>mapa · src</h1>
+  <span class="meta">287 simbolos · 238 llamadas resueltas de 618 (39%)</span>
+  <span class="meta">ciclo: 4 capturadas · 1 leidas · 1 intervenidas · 1 sin reaparecer</span>
+  <span class="meta">suelo: 2/8 capas</span>
+  <span id="estado">layout optimizando&hellip;</span>
+  <input id="buscar" placeholder="buscar simbolo..." autocomplete="off">
+  <button id="btnPausa" title="pausar/reanudar la fisica">&#9208;</button>
+  <button id="btnEncaja" title="reencuadrar">&#8862;</button>
+  <button id="btnConsola" title="consola de actividad de los agentes">&#8801;</button>
+  <button id="btnErrores" title="consola de errores (capturas de gb)">&#9888;</button>
+  <span class="leyenda"><span><i style="background:#7c3aed"></i>module</span><span><i style="background:#f59e0b"></i>class</span><span><i style="background:#10b981"></i>function</span><span><i style="background:#60a5fa"></i>method</span><span><i class="linea" style="color:#fb7185"></i>import (exacto)</span><span><i class="linea" style="color:#94a3b8"></i>llamada (inferida)</span><span><i class="aro" style="color:#f97316"></i>capturada</span><span><i class="aro" style="color:#facc15"></i>leida</span><span><i class="aro" style="color:#38bdf8"></i>intervenida</span><span><i class="aro" style="color:#4ade80"></i>en-silencio</span></span>
+</header>
+<canvas id="lienzo"></canvas>
+<div id="ficha"></div>
+<div id="terminales"></div>
+<div id="consola"></div>
+<div id="errores"></div>
+<div id="pie">generado el 2026-08-07 03:13 desde 0e8a528+sin-commitear  ·  sin resolver: atributo-de-variable 350, expresion-dinamica 2, nombre-desconocido 28  ·  motor cd3a2cc0</div>
+<script>
+// ================= datos =================
+const NODOS = [{"id": "guardia", "x": 569.8771242968685, "y": 500.0, "r": 13.0, "c": "#7c3aed", "g": "guardia", "k": "module", "l": "guardia", "m": 20.0, "nu": 0, "ci": 0, "d": "guardia — plano de control del sistema de seguridad con capa de IA.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.actores", "x": 427.1323396734221, "y": 566.7527458501181, "r": 13.0, "c": "#7c3aed", "g": "guardia.actores", "k": "module", "l": "actores", "m": 20.0, "nu": 0, "ci": 0, "d": "Quien pide una accion. La autoridad se decide por actor, no por argumento.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.actores.Actor", "x": 473.3444212681746, "y": 534.3041419739234, "r": 9.56, "c": "#f59e0b", "g": "guardia.actores", "k": "class", "l": "Actor", "m": 5.0, "nu": 0, "ci": 0, "d": "Origen de una peticion al plano de control.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.actores.SinAutoridad", "x": 495.0230674459293, "y": 560.4266524520076, "r": 9.56, "c": "#f59e0b", "g": "guardia.actores", "k": "class", "l": "SinAutoridad", "m": 5.0, "nu": 0, "ci": 0, "d": "Un actor pidio una accion que su rol no permite. No se interpreta la peticion.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.actores.SinAutoridad.__init__", "x": 507.77115927976945, "y": 572.5142997922885, "r": 3.0, "c": "#60a5fa", "g": "guardia.actores", "k": "method", "l": "__init__", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.aplicador", "x": 510.5811992455906, "y": 379.4326921486379, "r": 13.0, "c": "#7c3aed", "g": "guardia.aplicador", "k": "module", "l": "aplicador", "m": 20.0, "nu": 0, "ci": 0, "d": "El estado de politica activa, versionado, con rollback que se ejecuta de verdad.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.aplicador.Aplicador", "x": 501.2952259554649, "y": 363.749687609407, "r": 9.8, "c": "#f59e0b", "g": "guardia.aplicador", "k": "class", "l": "Aplicador", "m": 5.0, "nu": 0, "ci": 0, "d": "La politica activa sobre un fichero. Serie ordenada de propuestas.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.aplicador.Aplicador.__init__", "x": 483.6594681881096, "y": 394.6895021348165, "r": 3.0, "c": "#60a5fa", "g": "guardia.aplicador", "k": "method", "l": "__init__", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.aplicador.Aplicador._escribir", "x": 446.8803587521513, "y": 396.09968485581595, "r": 4.27, "c": "#60a5fa", "g": "guardia.aplicador", "k": "method", "l": "_escribir", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.aplicador.Aplicador._hash", "x": 531.4844804388723, "y": 440.55582217160276, "r": 4.27, "c": "#60a5fa", "g": "guardia.aplicador", "k": "method", "l": "_hash", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.aplicador.Aplicador.activas", "x": 533.6055652747465, "y": 447.40193518723163, "r": 4.56, "c": "#60a5fa", "g": "guardia.aplicador", "k": "method", "l": "activas", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.aplicador.Aplicador.aplicar", "x": 528.5900476497941, "y": 420.7260854161024, "r": 5.01, "c": "#60a5fa", "g": "guardia.aplicador", "k": "method", "l": "aplicar", "m": 2.0, "nu": 0, "ci": 0, "d": "Aplica una propuesta y devuelve el punto de restauracion previo. Idempotente", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.aplicador.Aplicador.hash_actual", "x": 537.7221173814993, "y": 462.1569229781224, "r": 4.56, "c": "#60a5fa", "g": "guardia.aplicador", "k": "method", "l": "hash_actual", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.aplicador.Aplicador.restaura_a", "x": 504.1832948233638, "y": 362.4228315221361, "r": 3.9, "c": "#60a5fa", "g": "guardia.aplicador", "k": "method", "l": "restaura_a", "m": 2.0, "nu": 0, "ci": 0, "d": "¿El estado actual coincide con el punto guardado? El corazon del gate 4.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.aplicador.Aplicador.revertir", "x": 534.3391986065612, "y": 380.59049590090143, "r": 4.27, "c": "#60a5fa", "g": "guardia.aplicador", "k": "method", "l": "revertir", "m": 2.0, "nu": 0, "ci": 0, "d": "Deshace `aplicar`: quita la propuesta por id. El punto sirve para verificar.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.aplicador.Punto", "x": 446.2409117409489, "y": 332.9981514288115, "r": 9.27, "c": "#f59e0b", "g": "guardia.aplicador", "k": "class", "l": "Punto", "m": 5.0, "nu": 0, "ci": 0, "d": "Un punto de restauracion: el hash del estado antes de aplicar algo. El crisol lo", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.aplicador._serializar", "x": 508.19749031058075, "y": 335.63550569842846, "r": 5.27, "c": "#10b981", "g": "guardia.aplicador", "k": "function", "l": "_serializar", "m": 2.0, "nu": 0, "ci": 0, "d": "La forma canonica de una propuesta aplicada. Solo lo que define la politica —", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.aplicador._valor", "x": 530.1052622920357, "y": 428.51749041832994, "r": 4.9, "c": "#10b981", "g": "guardia.aplicador", "k": "function", "l": "_valor", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.auditoria", "x": 585.03191583133, "y": 610.909076680196, "r": 13.0, "c": "#7c3aed", "g": "guardia.auditoria", "k": "module", "l": "auditoria", "m": 20.0, "nu": 0, "ci": 0, "d": "El log de auditoria: append-only y encadenado por hash.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.auditoria.Auditoria", "x": 591.1472286178192, "y": 669.4964848721677, "r": 8.9, "c": "#f59e0b", "g": "guardia.auditoria", "k": "class", "l": "Auditoria", "m": 5.0, "nu": 0, "ci": 0, "d": "Log append-only encadenado. Una instancia por fichero.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.auditoria.Auditoria.__init__", "x": 666.1474880396628, "y": 602.7867708074726, "r": 3.0, "c": "#60a5fa", "g": "guardia.auditoria", "k": "method", "l": "__init__", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.auditoria.Auditoria._ultima", "x": 638.464435915281, "y": 631.8458701581543, "r": 4.27, "c": "#60a5fa", "g": "guardia.auditoria", "k": "method", "l": "_ultima", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.auditoria.Auditoria.leer", "x": 544.560678766105, "y": 671.6406192044719, "r": 4.8, "c": "#60a5fa", "g": "guardia.auditoria", "k": "method", "l": "leer", "m": 2.0, "nu": 0, "ci": 0, "d": "Recorre el log. Una linea ilegible es manipulacion, no un despiste.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.auditoria.Auditoria.registrar", "x": 602.9021007815198, "y": 620.0907978765154, "r": 5.01, "c": "#60a5fa", "g": "guardia.auditoria", "k": "method", "l": "registrar", "m": 2.0, "nu": 0, "ci": 0, "d": "Anade una entrada y la devuelve. Escribe y sincroniza antes de volver.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.auditoria.Auditoria.verificar", "x": 514.2462329918056, "y": 594.3590306920111, "r": 4.56, "c": "#60a5fa", "g": "guardia.auditoria", "k": "method", "l": "verificar", "m": 2.0, "nu": 0, "ci": 0, "d": "Recalcula la cadena entera. Este es el metodo que hace util al modulo.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.auditoria.CadenaRota", "x": 613.683305461217, "y": 673.1552919721955, "r": 8.9, "c": "#f59e0b", "g": "guardia.auditoria", "k": "class", "l": "CadenaRota", "m": 5.0, "nu": 0, "ci": 0, "d": "La cadena de hashes no cuadra: hubo manipulacion o truncado.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.auditoria.Entrada", "x": 505.1496497934152, "y": 569.7750894771573, "r": 9.27, "c": "#f59e0b", "g": "guardia.auditoria", "k": "class", "l": "Entrada", "m": 5.0, "nu": 0, "ci": 0, "d": "Una linea del log, ya verificada estructuralmente.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.auditoria.Entrada.payload", "x": 551.5086931397511, "y": 622.0046496248711, "r": 3.0, "c": "#60a5fa", "g": "guardia.auditoria", "k": "method", "l": "payload", "m": 2.0, "nu": 0, "ci": 0, "d": "Lo que entra en el hash. El propio hash queda fuera, obviamente.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.auditoria.Veredicto", "x": 620.0671378515713, "y": 597.8475247761087, "r": 8.9, "c": "#f59e0b", "g": "guardia.auditoria", "k": "class", "l": "Veredicto", "m": 5.0, "nu": 0, "ci": 0, "d": "Resultado de verificar la cadena entera.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.auditoria._ahora", "x": 551.212793913352, "y": 606.0066353722387, "r": 4.9, "c": "#10b981", "g": "guardia.auditoria", "k": "function", "l": "_ahora", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.auditoria._canonico", "x": 513.8686109855671, "y": 567.0025167157311, "r": 5.27, "c": "#10b981", "g": "guardia.auditoria", "k": "function", "l": "_canonico", "m": 2.0, "nu": 0, "ci": 0, "d": "Serializacion estable: el hash no puede depender del orden de las claves.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.auditoria._hash", "x": 642.5065436833371, "y": 669.3752452993759, "r": 5.56, "c": "#10b981", "g": "guardia.auditoria", "k": "function", "l": "_hash", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco", "x": 346.1385179194643, "y": 472.7840702532326, "r": 13.0, "c": "#7c3aed", "g": "guardia.banco", "k": "module", "l": "banco", "m": 20.0, "nu": 0, "ci": 0, "d": "El banco de la metrica 5: telemetria con inyecciones reales contra T2.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco.Banco", "x": 282.1236373940469, "y": 522.4679447183737, "r": 8.9, "c": "#f59e0b", "g": "guardia.banco", "k": "class", "l": "Banco", "m": 5.0, "nu": 0, "ci": 0, "d": "Corre el corpus de inyecciones por el ciclo completo y clasifica.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco.Banco.correr", "x": 382.25790267720083, "y": 460.80007443951513, "r": 4.27, "c": "#60a5fa", "g": "guardia.banco", "k": "method", "l": "correr", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco.Banco.un_incidente", "x": 418.5897644312261, "y": 414.07386232913086, "r": 4.56, "c": "#60a5fa", "g": "guardia.banco", "k": "method", "l": "un_incidente", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco.Informe", "x": 378.3632010374141, "y": 431.3786994159831, "r": 8.9, "c": "#f59e0b", "g": "guardia.banco", "k": "class", "l": "Informe", "m": 5.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco.Informe.contenidos", "x": 418.3481616601857, "y": 399.29608542407993, "r": 3.0, "c": "#60a5fa", "g": "guardia.banco", "k": "method", "l": "contenidos", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco.Informe.medidos", "x": 415.20354761022, "y": 417.6095636023424, "r": 3.0, "c": "#60a5fa", "g": "guardia.banco", "k": "method", "l": "medidos", "m": 2.0, "nu": 0, "ci": 0, "d": "Incidentes con estimulo que llegaron a evaluarse. La metrica solo se afirma", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco.Informe.politicas_malas_aplicadas", "x": 318.92394408105434, "y": 439.665949831472, "r": 3.0, "c": "#60a5fa", "g": "guardia.banco", "k": "method", "l": "politicas_malas_aplicadas", "m": 2.0, "nu": 0, "ci": 0, "d": "La metrica 5. Objetivo: 0.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco.Informe.sin_estimulo", "x": 352.5956255088404, "y": 524.0228168996919, "r": 3.0, "c": "#60a5fa", "g": "guardia.banco", "k": "method", "l": "sin_estimulo", "m": 2.0, "nu": 0, "ci": 0, "d": "Objetivos sin fichero de incidente en el corpus. Habitual en un corpus", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco.Informe.sin_medir", "x": 379.9697896001178, "y": 394.56385319257316, "r": 3.0, "c": "#60a5fa", "g": "guardia.banco", "k": "method", "l": "sin_medir", "m": 2.0, "nu": 0, "ci": 0, "d": "Incidentes que no llegaron a los gates. Si esto no es 0, el informe entero", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco.Informe.valido", "x": 396.8737523112006, "y": 478.9652738790606, "r": 3.0, "c": "#60a5fa", "g": "guardia.banco", "k": "method", "l": "valido", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco.Informe.veces_que_pico_el_modelo", "x": 382.7332208095903, "y": 413.1631409200947, "r": 3.0, "c": "#60a5fa", "g": "guardia.banco", "k": "method", "l": "veces_que_pico_el_modelo", "m": 2.0, "nu": 0, "ci": 0, "d": "Cuantas inyecciones desviaron al modelo. Alto es malo, pero NO es el fallo:", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco.Objetivo", "x": 323.97802012922443, "y": 433.96426749382647, "r": 8.0, "c": "#f59e0b", "g": "guardia.banco", "k": "class", "l": "Objetivo", "m": 5.0, "nu": 0, "ci": 0, "d": "Que buscaba el atacante en un incidente, comprobable sobre la propuesta.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco.Objetivo.obedecida", "x": 268.0784242744439, "y": 545.521870479796, "r": 3.0, "c": "#60a5fa", "g": "guardia.banco", "k": "method", "l": "obedecida", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco.Resultado", "x": 280.3129893419139, "y": 417.35901501230944, "r": 8.9, "c": "#f59e0b", "g": "guardia.banco", "k": "class", "l": "Resultado", "m": 5.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco.Resultado.modelo_pico", "x": 289.2045601526605, "y": 451.5376382513951, "r": 3.0, "c": "#60a5fa", "g": "guardia.banco", "k": "method", "l": "modelo_pico", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco.Resultado.politica_mala_aplicada", "x": 375.4015246241521, "y": 442.9170190575998, "r": 3.0, "c": "#60a5fa", "g": "guardia.banco", "k": "method", "l": "politica_mala_aplicada", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco.Veredicto", "x": 342.3503043819733, "y": 497.61905084571384, "r": 8.0, "c": "#f59e0b", "g": "guardia.banco", "k": "class", "l": "Veredicto", "m": 5.0, "nu": 0, "ci": 0, "d": "El resultado de un incidente envenenado, del mejor al peor.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco._bloquea_todo", "x": 424.59825492583576, "y": 551.8129716246457, "r": 4.0, "c": "#10b981", "g": "guardia.banco", "k": "function", "l": "_bloquea_todo", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco._ciega_el_registro", "x": 307.96844397248674, "y": 391.4161061734658, "r": 4.0, "c": "#10b981", "g": "guardia.banco", "k": "function", "l": "_ciega_el_registro", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco._cierra_ssh", "x": 365.04118100714675, "y": 526.3105139860247, "r": 4.0, "c": "#10b981", "g": "guardia.banco", "k": "function", "l": "_cierra_ssh", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco._deniega_plano_de_control", "x": 375.11259491143664, "y": 476.7335090773839, "r": 4.0, "c": "#10b981", "g": "guardia.banco", "k": "function", "l": "_deniega_plano_de_control", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco._no_cubre_el_c2", "x": 269.36615713016056, "y": 410.708113223157, "r": 4.0, "c": "#10b981", "g": "guardia.banco", "k": "function", "l": "_no_cubre_el_c2", "m": 2.0, "nu": 0, "ci": 0, "d": "Desvio: la propuesta apunta a otro sitio en vez de al C2 observado.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco._nunca", "x": 392.8690273656369, "y": 538.173968699479, "r": 4.0, "c": "#10b981", "g": "guardia.banco", "k": "function", "l": "_nunca", "m": 2.0, "nu": 0, "ci": 0, "d": "Para inyecciones cuyo exito es que NO haya propuesta: ninguna propuesta las", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco_evaluador", "x": 644.4199399947411, "y": 408.1318557283572, "r": 13.0, "c": "#7c3aed", "g": "guardia.banco_evaluador", "k": "module", "l": "banco_evaluador", "m": 20.0, "nu": 0, "ci": 0, "d": "El banco del evaluador: mide si sus lentes DISTINGUEN una propuesta desviada de una", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco_evaluador.BancoEvaluador", "x": 672.4391006350163, "y": 458.03255120811946, "r": 8.9, "c": "#f59e0b", "g": "guardia.banco_evaluador", "k": "class", "l": "BancoEvaluador", "m": 5.0, "nu": 0, "ci": 0, "d": "Enfrenta al evaluador a cada caso y clasifica. Nunca decide nada: mide.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco_evaluador.BancoEvaluador._un_caso", "x": 631.4791285909606, "y": 442.24907262092495, "r": 4.56, "c": "#60a5fa", "g": "guardia.banco_evaluador", "k": "method", "l": "_un_caso", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco_evaluador.BancoEvaluador.correr", "x": 664.8500871234866, "y": 412.2626740865445, "r": 4.56, "c": "#60a5fa", "g": "guardia.banco_evaluador", "k": "method", "l": "correr", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco_evaluador.BancoEvaluador.correr_varias", "x": 675.6651890345245, "y": 380.4475267025177, "r": 4.27, "c": "#60a5fa", "g": "guardia.banco_evaluador", "k": "method", "l": "correr_varias", "m": 2.0, "nu": 0, "ci": 0, "d": "N pasadas completas e independientes. El control SI se reevalua en cada una", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco_evaluador.CasoEval", "x": 565.53999377387, "y": 326.50257211895394, "r": 8.0, "c": "#f59e0b", "g": "guardia.banco_evaluador", "k": "class", "l": "CasoEval", "m": 5.0, "nu": 0, "ci": 0, "d": "Un incidente reducido a lo que el evaluador puede ver: la propuesta desviada que", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco_evaluador.Discriminacion", "x": 619.3198222261688, "y": 326.6190513916248, "r": 8.0, "c": "#f59e0b", "g": "guardia.banco_evaluador", "k": "class", "l": "Discriminacion", "m": 5.0, "nu": 0, "ci": 0, "d": "Que hizo el evaluador con el par (desviada, correcta) de un incidente.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco_evaluador.InformeEval", "x": 721.3440915013864, "y": 418.3962857124121, "r": 8.9, "c": "#f59e0b", "g": "guardia.banco_evaluador", "k": "class", "l": "InformeEval", "m": 5.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco_evaluador.InformeEval._cuenta", "x": 699.677204357682, "y": 369.19976965372587, "r": 4.8, "c": "#60a5fa", "g": "guardia.banco_evaluador", "k": "method", "l": "_cuenta", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco_evaluador.InformeEval.aciertos_de_lente", "x": 589.6143566808252, "y": 325.19907616299696, "r": 3.0, "c": "#60a5fa", "g": "guardia.banco_evaluador", "k": "method", "l": "aciertos_de_lente", "m": 2.0, "nu": 0, "ci": 0, "d": "De los que discrimino, en cuantos disparo ademas la lente esperada. Un", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco_evaluador.InformeEval.ambiguos", "x": 638.0698940665488, "y": 340.9962590066597, "r": 3.9, "c": "#60a5fa", "g": "guardia.banco_evaluador", "k": "method", "l": "ambiguos", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco_evaluador.InformeEval.discriminados", "x": 686.0856858453157, "y": 402.4516131154737, "r": 3.9, "c": "#60a5fa", "g": "guardia.banco_evaluador", "k": "method", "l": "discriminados", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco_evaluador.InformeEval.falsos_negativos", "x": 695.2315450495048, "y": 332.1129468152607, "r": 3.9, "c": "#60a5fa", "g": "guardia.banco_evaluador", "k": "method", "l": "falsos_negativos", "m": 2.0, "nu": 0, "ci": 0, "d": "Cuantas veces dejo pasar la desviada. Alto es malo, pero NO invalida el", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco_evaluador.InformeEval.lentes_en_control", "x": 670.5910212152016, "y": 477.02943532758286, "r": 3.0, "c": "#60a5fa", "g": "guardia.banco_evaluador", "k": "method", "l": "lentes_en_control", "m": 2.0, "nu": 0, "ci": 0, "d": "Las lentes que objetaron al control (la correcta) en esta pasada. El control", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco_evaluador.InformeEval.sin_medir", "x": 575.0593391359632, "y": 332.94761750937914, "r": 3.9, "c": "#60a5fa", "g": "guardia.banco_evaluador", "k": "method", "l": "sin_medir", "m": 2.0, "nu": 0, "ci": 0, "d": "Casos en los que el canal cayo. Si esto no es 0, el informe entero esta en", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco_evaluador.InformeEval.valido", "x": 670.7297101253655, "y": 476.9381501544013, "r": 3.0, "c": "#60a5fa", "g": "guardia.banco_evaluador", "k": "method", "l": "valido", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco_evaluador.InformeVarianza", "x": 612.3491928568787, "y": 419.5793835067187, "r": 8.9, "c": "#f59e0b", "g": "guardia.banco_evaluador", "k": "class", "l": "InformeVarianza", "m": 5.0, "nu": 0, "ci": 0, "d": "N pasadas del banco sobre los mismos estimulos: mide ESTABILIDAD, no decide.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco_evaluador.InformeVarianza.estabilidad_del_control", "x": 607.0306582563338, "y": 344.43678380814134, "r": 3.0, "c": "#60a5fa", "g": "guardia.banco_evaluador", "k": "method", "l": "estabilidad_del_control", "m": 2.0, "nu": 0, "ci": 0, "d": "Por lente: en cuantas de las N pasadas objeto al control. La cifra que", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco_evaluador.InformeVarianza.incidentes", "x": 632.753696814031, "y": 345.5816660999633, "r": 3.0, "c": "#60a5fa", "g": "guardia.banco_evaluador", "k": "method", "l": "incidentes", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco_evaluador.InformeVarianza.pasadas", "x": 700.7764554522121, "y": 352.05574589851506, "r": 3.0, "c": "#60a5fa", "g": "guardia.banco_evaluador", "k": "method", "l": "pasadas", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco_evaluador.InformeVarianza.recuento", "x": 664.4765786914509, "y": 466.3559190115523, "r": 3.9, "c": "#60a5fa", "g": "guardia.banco_evaluador", "k": "method", "l": "recuento", "m": 2.0, "nu": 0, "ci": 0, "d": "Cuantas pasadas dieron cada clasificacion a este incidente.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco_evaluador.InformeVarianza.unanime", "x": 582.905109899471, "y": 372.2796985390361, "r": 3.9, "c": "#60a5fa", "g": "guardia.banco_evaluador", "k": "method", "l": "unanime", "m": 2.0, "nu": 0, "ci": 0, "d": "La misma clasificacion en todas las pasadas. Lo NO unanime es lo", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco_evaluador.InformeVarianza.valido", "x": 612.021335917206, "y": 468.24787086478136, "r": 3.0, "c": "#60a5fa", "g": "guardia.banco_evaluador", "k": "method", "l": "valido", "m": 2.0, "nu": 0, "ci": 0, "d": "Cuarentena si CUALQUIER pasada quedo sin medir: mezclar pasadas completas", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco_evaluador.ResultadoEval", "x": 597.4691451691893, "y": 396.99536415622913, "r": 8.9, "c": "#f59e0b", "g": "guardia.banco_evaluador", "k": "class", "l": "ResultadoEval", "m": 5.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco_evaluador.ResultadoEval.discrimino", "x": 714.5348492360542, "y": 347.5334505779869, "r": 3.0, "c": "#60a5fa", "g": "guardia.banco_evaluador", "k": "method", "l": "discrimino", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco_evaluador._clasificar", "x": 576.8827669128833, "y": 395.48785609187877, "r": 4.9, "c": "#10b981", "g": "guardia.banco_evaluador", "k": "function", "l": "_clasificar", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco_evaluador._confin", "x": 628.5356107560167, "y": 407.53679619135556, "r": 4.9, "c": "#10b981", "g": "guardia.banco_evaluador", "k": "function", "l": "_confin", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.banco_evaluador._filtro", "x": 706.3381815048898, "y": 426.71404617784236, "r": 4.9, "c": "#10b981", "g": "guardia.banco_evaluador", "k": "function", "l": "_filtro", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.cli", "x": 452.0050068802086, "y": 678.5389821171589, "r": 13.0, "c": "#7c3aed", "g": "guardia.cli", "k": "module", "l": "cli", "m": 20.0, "nu": 0, "ci": 0, "d": "`guardia` — la linea de mando determinista.", "ec": "#4ade80", "ee": "en-silencio", "el": ["AttributeError en cli.py:137 — 2 veces, ultima hace 6d · sin leer · tocado despues (085f248) · sin reaparecer desde hace 14min"], "tc": 0, "ag": []}, {"id": "guardia.cli._banco_evaluador_varianza", "x": 473.60915705026633, "y": 743.0960302168697, "r": 4.9, "c": "#10b981", "g": "guardia.cli", "k": "function", "l": "_banco_evaluador_varianza", "m": 2.0, "nu": 0, "ci": 0, "d": "N pasadas para medir estabilidad de la senal (pendiente 1a de evidencia.md):", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.cli._cmd_auditoria", "x": 501.48977051603197, "y": 680.3494546343891, "r": 4.9, "c": "#10b981", "g": "guardia.cli", "k": "function", "l": "_cmd_auditoria", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.cli._cmd_banco", "x": 408.44694735758463, "y": 600.8292514427137, "r": 6.01, "c": "#10b981", "g": "guardia.cli", "k": "function", "l": "_cmd_banco", "m": 2.0, "nu": 0, "ci": 0, "d": "La metrica 5 medida: corpus de inyecciones contra T2, ciclo completo, informe.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.cli._cmd_banco_evaluador", "x": 390.83731105417246, "y": 631.571752242129, "r": 6.2, "c": "#10b981", "g": "guardia.cli", "k": "function", "l": "_cmd_banco_evaluador", "m": 2.0, "nu": 0, "ci": 0, "d": "Mide si el evaluador adversarial DISTINGUE una propuesta desviada de la correcta", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.cli._cmd_confirmar", "x": 374.56845931040925, "y": 721.3130162284788, "r": 5.27, "c": "#10b981", "g": "guardia.cli", "k": "function", "l": "_cmd_confirmar", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.cli._cmd_congelar", "x": 395.49202814362275, "y": 680.0198929475482, "r": 5.27, "c": "#10b981", "g": "guardia.cli", "k": "function", "l": "_cmd_congelar", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.cli._cmd_crisol", "x": 508.4057761864935, "y": 601.5336398875002, "r": 6.01, "c": "#10b981", "g": "guardia.cli", "k": "function", "l": "_cmd_crisol", "m": 2.0, "nu": 0, "ci": 0, "d": "Corre la propuesta por los cuatro gates de la regla 6. No aplica a produccion:", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.cli._cmd_descongelar", "x": 437.3827393665278, "y": 756.7993440702371, "r": 5.27, "c": "#10b981", "g": "guardia.cli", "k": "function", "l": "_cmd_descongelar", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.cli._cmd_desplegar", "x": 471.27737480092094, "y": 607.8225502124079, "r": 5.27, "c": "#10b981", "g": "guardia.cli", "k": "function", "l": "_cmd_desplegar", "m": 2.0, "nu": 0, "ci": 0, "d": "Crisol + aplicacion real: si pasa los gates y no excede la tasa, se aplica en", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.cli._cmd_enforcement", "x": 529.2949810793408, "y": 665.1324050014185, "r": 5.27, "c": "#10b981", "g": "guardia.cli", "k": "function", "l": "_cmd_enforcement", "m": 2.0, "nu": 0, "ci": 0, "d": "Traduce la politica activa a reglas nftables y, con --aplicar, las enforca.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.cli._cmd_estado", "x": 399.8730876195755, "y": 644.1947805702955, "r": 4.9, "c": "#10b981", "g": "guardia.cli", "k": "function", "l": "_cmd_estado", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.cli._cmd_generar_inyecciones", "x": 427.4796398211175, "y": 756.5651024340231, "r": 6.2, "c": "#10b981", "g": "guardia.cli", "k": "function", "l": "_cmd_generar_inyecciones", "m": 2.0, "nu": 0, "ci": 0, "d": "Encarga el corpus de inyecciones a un modelo ciego (no ha visto el sistema).", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.cli._cmd_informe", "x": 528.3100747437502, "y": 651.8885945306025, "r": 5.27, "c": "#10b981", "g": "guardia.cli", "k": "function", "l": "_cmd_informe", "m": 2.0, "nu": 0, "ci": 0, "d": "Proyecta el estado y el log de auditoria a una pagina HTML de SOLO LECTURA.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.cli._cmd_responder", "x": 380.3165953584006, "y": 621.3753792567092, "r": 6.38, "c": "#10b981", "g": "guardia.cli", "k": "function", "l": "_cmd_responder", "m": 2.0, "nu": 0, "ci": 0, "d": "El ciclo completo: incidente → triaje (T2) → despliegue (T3). Por defecto con", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.cli._cmd_revisar", "x": 499.49300765903644, "y": 626.8270177423522, "r": 4.9, "c": "#10b981", "g": "guardia.cli", "k": "function", "l": "_cmd_revisar", "m": 2.0, "nu": 0, "ci": 0, "d": "El dead-man's switch: revierte los canarios expirados sin confirmar. Lo llama el", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.cli._cmd_validar", "x": 434.0839472314102, "y": 761.2734256359735, "r": 5.56, "c": "#10b981", "g": "guardia.cli", "k": "function", "l": "_cmd_validar", "m": 2.0, "nu": 0, "ci": 0, "d": "Parsea una propuesta contra la gramatica y la contrasta con los invariantes.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.cli._comando_llm", "x": 494.8693455208439, "y": 742.8529472250119, "r": 5.8, "c": "#10b981", "g": "guardia.cli", "k": "function", "l": "_comando_llm", "m": 2.0, "nu": 0, "ci": 0, "d": "El comando de transporte a un modelo. Compartido por T2 y el evaluador: los dos", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.cli._despliegue", "x": 371.01134693120235, "y": 717.6816147698095, "r": 6.85, "c": "#10b981", "g": "guardia.cli", "k": "function", "l": "_despliegue", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.cli._flags_de_proveedor", "x": 450.2775737224978, "y": 616.051068244309, "r": 4.9, "c": "#10b981", "g": "guardia.cli", "k": "function", "l": "_flags_de_proveedor", "m": 2.0, "nu": 0, "ci": 0, "d": "Quien propone en T2. Compartido por `responder` y `banco`: el defecto es el", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.cli._generar_varianza", "x": 523.4411123286748, "y": 687.2170007585092, "r": 5.27, "c": "#10b981", "g": "guardia.cli", "k": "function", "l": "_generar_varianza", "m": 2.0, "nu": 0, "ci": 0, "d": "N pasadas: ¿la negativa 4/6 es sistematica (N/N) o ruido (1/N)? Reporta la", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.cli._interruptor", "x": 457.95050056217315, "y": 736.2497619808116, "r": 6.98, "c": "#10b981", "g": "guardia.cli", "k": "function", "l": "_interruptor", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.cli._mostrar_dictamen", "x": 401.72043781381404, "y": 634.0869549025178, "r": 5.8, "c": "#10b981", "g": "guardia.cli", "k": "function", "l": "_mostrar_dictamen", "m": 2.0, "nu": 0, "ci": 0, "d": "El evaluador adversarial (regla 10, ADR 0007). ADVISORY: se imprime y se audita,", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.cli._proveedor", "x": 525.2489299750875, "y": 665.0764734152542, "r": 6.2, "c": "#10b981", "g": "guardia.cli", "k": "function", "l": "_proveedor", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.cli._volcar_generacion", "x": 380.22021666564194, "y": 752.0939406033639, "r": 5.27, "c": "#10b981", "g": "guardia.cli", "k": "function", "l": "_volcar_generacion", "m": 2.0, "nu": 0, "ci": 0, "d": "Escribe una generacion a disco: el admitido a `salida/\u003cobj>.jsonl`; el rechazado", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.cli.construir_parser", "x": 369.28094046796366, "y": 744.5370447985651, "r": 5.27, "c": "#10b981", "g": "guardia.cli", "k": "function", "l": "construir_parser", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.cli.main", "x": 487.40358420899514, "y": 747.7680351368358, "r": 4.9, "c": "#10b981", "g": "guardia.cli", "k": "function", "l": "main", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.crisol", "x": 408.90525077088984, "y": 324.6026036028883, "r": 13.0, "c": "#7c3aed", "g": "guardia.crisol", "k": "module", "l": "crisol", "m": 20.0, "nu": 0, "ci": 0, "d": "El crisol: los cuatro gates de la regla 6. El unico camino para aplicar politica.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.crisol.Crisol", "x": 336.18013302351477, "y": 289.9050405760046, "r": 9.27, "c": "#f59e0b", "g": "guardia.crisol", "k": "class", "l": "Crisol", "m": 5.0, "nu": 0, "ci": 0, "d": "Orquesta los gates sobre un sandbox. No toca el estado de produccion.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.crisol.Crisol._gate_interruptor", "x": 380.7272877572429, "y": 328.2031058545979, "r": 3.9, "c": "#60a5fa", "g": "guardia.crisol", "k": "method", "l": "_gate_interruptor", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.crisol.Crisol._gate_invariantes", "x": 456.8659142098105, "y": 384.9170296409101, "r": 4.27, "c": "#60a5fa", "g": "guardia.crisol", "k": "method", "l": "_gate_invariantes", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.crisol.Crisol._gate_replay", "x": 326.47498217206925, "y": 287.47969983387753, "r": 4.27, "c": "#60a5fa", "g": "guardia.crisol", "k": "method", "l": "_gate_replay", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.crisol.Crisol._gate_rollback", "x": 332.0232497210231, "y": 399.0389803258298, "r": 3.9, "c": "#60a5fa", "g": "guardia.crisol", "k": "method", "l": "_gate_rollback", "m": 2.0, "nu": 0, "ci": 0, "d": "Aplica en el sandbox, revierte de verdad, y exige que el estado vuelva", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.crisol.Crisol._registrar", "x": 417.8057004036113, "y": 337.5051370279614, "r": 3.9, "c": "#60a5fa", "g": "guardia.crisol", "k": "method", "l": "_registrar", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.crisol.Crisol.evaluar", "x": 451.16267830969485, "y": 392.01343078669186, "r": 4.27, "c": "#60a5fa", "g": "guardia.crisol", "k": "method", "l": "evaluar", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.crisol.Resultado", "x": 335.73577977572904, "y": 250.1913065819797, "r": 8.0, "c": "#f59e0b", "g": "guardia.crisol", "k": "class", "l": "Resultado", "m": 5.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.crisol.Veredicto", "x": 394.2663130099757, "y": 358.17908094911064, "r": 10.01, "c": "#f59e0b", "g": "guardia.crisol", "k": "class", "l": "Veredicto", "m": 5.0, "nu": 0, "ci": 0, "d": "Lo que dictan los gates. `motivos` explica cada decision para el log y el humano.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.crisol.Veredicto.__str__", "x": 442.95995356694453, "y": 246.51760103711206, "r": 3.0, "c": "#60a5fa", "g": "guardia.crisol", "k": "method", "l": "__str__", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.crisol.Veredicto.aplicable", "x": 425.2012253249871, "y": 266.73293735280646, "r": 3.0, "c": "#60a5fa", "g": "guardia.crisol", "k": "method", "l": "aplicable", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.crisol.Veredicto.interruptor_cerrado", "x": 484.1276110884593, "y": 363.62020522973995, "r": 3.0, "c": "#60a5fa", "g": "guardia.crisol", "k": "method", "l": "interruptor_cerrado", "m": 2.0, "nu": 0, "ci": 0, "d": "El rechazo vino del gate 0: la capa estaba congelada y la propuesta nunca", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.despliegue", "x": 696.911212933808, "y": 571.9116591446516, "r": 13.0, "c": "#7c3aed", "g": "guardia.despliegue", "k": "module", "l": "despliegue", "m": 20.0, "nu": 0, "ci": 0, "d": "La aplicacion real: canary, dead-man's switch y limite de tasa. Cierra T3.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.despliegue.Canario", "x": 724.7315123780206, "y": 530.1861672434768, "r": 9.56, "c": "#f59e0b", "g": "guardia.despliegue", "k": "class", "l": "Canario", "m": 5.0, "nu": 0, "ci": 0, "d": "Un cambio aplicado en observacion. Si no se confirma antes de `plazo`, muere.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.despliegue.Canario.como_dict", "x": 627.0420917107712, "y": 601.728353651053, "r": 3.0, "c": "#60a5fa", "g": "guardia.despliegue", "k": "method", "l": "como_dict", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.despliegue.Canario.expira_en", "x": 731.7839364718188, "y": 543.0779074354123, "r": 3.0, "c": "#60a5fa", "g": "guardia.despliegue", "k": "method", "l": "expira_en", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.despliegue.Config", "x": 716.7756486923734, "y": 560.7456054925481, "r": 8.9, "c": "#f59e0b", "g": "guardia.despliegue", "k": "class", "l": "Config", "m": 5.0, "nu": 0, "ci": 0, "d": "Los frenos, fijados en el despliegue (no por peticion de nadie en runtime).", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.despliegue.Despacho", "x": 620.8030963565586, "y": 523.7167393235761, "r": 8.9, "c": "#f59e0b", "g": "guardia.despliegue", "k": "class", "l": "Despacho", "m": 5.0, "nu": 0, "ci": 0, "d": "El resultado de intentar desplegar. `veredicto` viene del crisol si llego a el.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.despliegue.Despacho.aplicado", "x": 738.0319932842436, "y": 531.3514406490491, "r": 3.0, "c": "#60a5fa", "g": "guardia.despliegue", "k": "method", "l": "aplicado", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.despliegue.Despliegue", "x": 628.1350601032116, "y": 509.83032535652086, "r": 8.9, "c": "#f59e0b", "g": "guardia.despliegue", "k": "class", "l": "Despliegue", "m": 5.0, "nu": 0, "ci": 0, "d": "Aplica propuestas a produccion con canary, dead-man's switch y limite de tasa.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.despliegue.Despliegue.__init__", "x": 726.6536645388246, "y": 552.8601191375233, "r": 4.27, "c": "#60a5fa", "g": "guardia.despliegue", "k": "method", "l": "__init__", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.despliegue.Despliegue._canarios", "x": 715.0038268575033, "y": 513.6111057175037, "r": 5.2, "c": "#60a5fa", "g": "guardia.despliegue", "k": "method", "l": "_canarios", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.despliegue.Despliegue._despacho", "x": 773.3760523670809, "y": 608.3969746282937, "r": 4.27, "c": "#60a5fa", "g": "guardia.despliegue", "k": "method", "l": "_despacho", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.despliegue.Despliegue._escribir", "x": 682.8768909526282, "y": 614.7921914669977, "r": 4.8, "c": "#60a5fa", "g": "guardia.despliegue", "k": "method", "l": "_escribir", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.despliegue.Despliegue._excede_tasa", "x": 643.3494347449165, "y": 527.4671554642109, "r": 4.27, "c": "#60a5fa", "g": "guardia.despliegue", "k": "method", "l": "_excede_tasa", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.despliegue.Despliegue._guardar_canario", "x": 662.7506590018911, "y": 568.5796678238655, "r": 4.8, "c": "#60a5fa", "g": "guardia.despliegue", "k": "method", "l": "_guardar_canario", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.despliegue.Despliegue._historial", "x": 656.7671531368017, "y": 639.0246180533022, "r": 4.8, "c": "#60a5fa", "g": "guardia.despliegue", "k": "method", "l": "_historial", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.despliegue.Despliegue._leer", "x": 773.4852490464625, "y": 559.8448702674308, "r": 4.27, "c": "#60a5fa", "g": "guardia.despliegue", "k": "method", "l": "_leer", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.despliegue.Despliegue.canarios_activos", "x": 701.1808194268185, "y": 561.8167741846487, "r": 3.9, "c": "#60a5fa", "g": "guardia.despliegue", "k": "method", "l": "canarios_activos", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.despliegue.Despliegue.confirmar", "x": 659.0755407958978, "y": 523.070204520723, "r": 4.8, "c": "#60a5fa", "g": "guardia.despliegue", "k": "method", "l": "confirmar", "m": 2.0, "nu": 0, "ci": 0, "d": "Un humano confirma que el canary va bien: pasa a estable, desarma el dead-man.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.despliegue.Despliegue.desplegar", "x": 632.5555406399169, "y": 614.843732371688, "r": 4.8, "c": "#60a5fa", "g": "guardia.despliegue", "k": "method", "l": "desplegar", "m": 2.0, "nu": 0, "ci": 0, "d": "Crisol → tasa → aplica en canary. El orden importa: los gates primero (un", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.despliegue.Despliegue.politica_activa", "x": 666.6227726155836, "y": 555.3033598995387, "r": 3.0, "c": "#60a5fa", "g": "guardia.despliegue", "k": "method", "l": "politica_activa", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.despliegue.Despliegue.revisar", "x": 627.9176218545539, "y": 614.8960460024798, "r": 4.56, "c": "#60a5fa", "g": "guardia.despliegue", "k": "method", "l": "revisar", "m": 2.0, "nu": 0, "ci": 0, "d": "El dead-man's switch: revierte los canarios que expiraron sin confirmar.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.despliegue.Estado", "x": 700.7660743594757, "y": 575.911845153829, "r": 8.0, "c": "#f59e0b", "g": "guardia.despliegue", "k": "class", "l": "Estado", "m": 5.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.evaluador", "x": 295.74655909228363, "y": 584.3128511993161, "r": 13.0, "c": "#7c3aed", "g": "guardia.evaluador", "k": "module", "l": "evaluador", "m": 20.0, "nu": 0, "ci": 0, "d": "El evaluador adversarial: intenta REFUTAR una propuesta, con varias lentes.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.evaluador.Dictamen", "x": 259.08208085516435, "y": 596.9949862445377, "r": 8.9, "c": "#f59e0b", "g": "guardia.evaluador", "k": "class", "l": "Dictamen", "m": 5.0, "nu": 0, "ci": 0, "d": "Lo que el evaluador vio. ADVISORY: ningun campo de aqui cambia un veredicto.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.evaluador.Dictamen.con_objecion", "x": 230.449641214356, "y": 637.5179849185008, "r": 3.0, "c": "#60a5fa", "g": "guardia.evaluador", "k": "method", "l": "con_objecion", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.evaluador.Dictamen.limpio", "x": 313.04252698082763, "y": 623.209294239635, "r": 3.0, "c": "#60a5fa", "g": "guardia.evaluador", "k": "method", "l": "limpio", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.evaluador.Dictamen.sin_dictamen", "x": 233.64369425157088, "y": 585.719255175981, "r": 3.0, "c": "#60a5fa", "g": "guardia.evaluador", "k": "method", "l": "sin_dictamen", "m": 2.0, "nu": 0, "ci": 0, "d": "Todas las lentes cayeron por transporte: el evaluador no llego a opinar. Un", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.evaluador.EvaluadorAdversarial", "x": 300.12293970063314, "y": 587.8475669586205, "r": 9.27, "c": "#f59e0b", "g": "guardia.evaluador", "k": "class", "l": "EvaluadorAdversarial", "m": 5.0, "nu": 0, "ci": 0, "d": "Pasa una propuesta por cada lente y recoge objeciones. Nunca decide.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.evaluador.EvaluadorAdversarial._una_lente", "x": 304.90651888890415, "y": 580.5440247322297, "r": 4.8, "c": "#60a5fa", "g": "guardia.evaluador", "k": "method", "l": "_una_lente", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.evaluador.EvaluadorAdversarial.evaluar", "x": 347.8829312777828, "y": 577.7288489688638, "r": 4.27, "c": "#60a5fa", "g": "guardia.evaluador", "k": "method", "l": "evaluar", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.evaluador.Lente", "x": 335.59063325226316, "y": 655.1515446869694, "r": 8.0, "c": "#f59e0b", "g": "guardia.evaluador", "k": "class", "l": "Lente", "m": 5.0, "nu": 0, "ci": 0, "d": "Un angulo de ataque contra la propuesta. En negativo a proposito: se le pide", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.evaluador.Objecion", "x": 311.7436610562463, "y": 660.3947877169103, "r": 8.9, "c": "#f59e0b", "g": "guardia.evaluador", "k": "class", "l": "Objecion", "m": 5.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.evaluador.Objecion.sin_dictamen", "x": 299.37031359710886, "y": 634.2799461757635, "r": 3.0, "c": "#60a5fa", "g": "guardia.evaluador", "k": "method", "l": "sin_dictamen", "m": 2.0, "nu": 0, "ci": 0, "d": "El canal cayo para esta lente: no es un 'no hay objecion', es un 'no se pudo", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.evaluador._describir", "x": 305.8668062555006, "y": 656.7294792480131, "r": 4.9, "c": "#10b981", "g": "guardia.evaluador", "k": "function", "l": "_describir", "m": 2.0, "nu": 0, "ci": 0, "d": "La propuesta en texto plano. Sin la telemetria del incidente: al evaluador se", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.eventos", "x": 598.228938351121, "y": 290.090464317574, "r": 13.0, "c": "#7c3aed", "g": "guardia.eventos", "k": "module", "l": "eventos", "m": 20.0, "nu": 0, "ci": 0, "d": "Telemetria normalizada: los eventos contra los que se replaya una propuesta.", "ec": "#facc15", "ee": "leida", "el": ["FileNotFoundError en eventos.py:150 — 2 veces, ultima hace 4d · leida"], "tc": 0, "ag": []}, {"id": "guardia.eventos.Corpus", "x": 677.8655293712318, "y": 225.2857419609319, "r": 8.9, "c": "#f59e0b", "g": "guardia.eventos", "k": "class", "l": "Corpus", "m": 5.0, "nu": 0, "ci": 0, "d": "Un corpus grabado, ya parseado. `saltadas` guarda las lineas malas: el corpus", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.eventos.Corpus.__len__", "x": 609.2465927358443, "y": 345.45836786214954, "r": 3.0, "c": "#60a5fa", "g": "guardia.eventos", "k": "method", "l": "__len__", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.eventos.EventoFichero", "x": 540.6950960008733, "y": 282.4410709322242, "r": 8.9, "c": "#f59e0b", "g": "guardia.eventos", "k": "class", "l": "EventoFichero", "m": 5.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.eventos.EventoInvalido", "x": 681.5449884329412, "y": 225.13111781107168, "r": 9.8, "c": "#f59e0b", "g": "guardia.eventos", "k": "class", "l": "EventoInvalido", "m": 5.0, "nu": 0, "ci": 0, "d": "Una linea del corpus no encaja. El corpus es dato: una linea mala se salta con", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.eventos.EventoProceso", "x": 643.9682747861225, "y": 259.5581630427009, "r": 8.9, "c": "#f59e0b", "g": "guardia.eventos", "k": "class", "l": "EventoProceso", "m": 5.0, "nu": 0, "ci": 0, "d": "Un proceso que arranca. `ancestros` va del padre hacia arriba: [pname, abuelo…].", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.eventos.EventoRed", "x": 670.7818400801045, "y": 358.28823804474274, "r": 8.9, "c": "#f59e0b", "g": "guardia.eventos", "k": "class", "l": "EventoRed", "m": 5.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.eventos.TipoEvento", "x": 635.8140863074105, "y": 305.0254789934735, "r": 8.9, "c": "#f59e0b", "g": "guardia.eventos", "k": "class", "l": "TipoEvento", "m": 5.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.eventos._fichero", "x": 562.0354986251343, "y": 352.87134933864763, "r": 5.27, "c": "#10b981", "g": "guardia.eventos", "k": "function", "l": "_fichero", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.eventos._proceso", "x": 649.917416051159, "y": 284.06950343308995, "r": 5.56, "c": "#10b981", "g": "guardia.eventos", "k": "function", "l": "_proceso", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.eventos._red", "x": 655.9846850686289, "y": 316.1133264815725, "r": 5.56, "c": "#10b981", "g": "guardia.eventos", "k": "function", "l": "_red", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.eventos._texto", "x": 542.1887301140212, "y": 261.0092197652799, "r": 5.8, "c": "#10b981", "g": "guardia.eventos", "k": "function", "l": "_texto", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.eventos.cargar", "x": 634.947328174545, "y": 259.9240203881486, "r": 6.38, "c": "#10b981", "g": "guardia.eventos", "k": "function", "l": "cargar", "m": 2.0, "nu": 0, "ci": 0, "d": "Lee un JSONL de eventos. Lineas vacias se ignoran; lineas ilegibles se saltan", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.eventos.desde_dict", "x": 586.1642740147189, "y": 276.01514951357615, "r": 5.8, "c": "#10b981", "g": "guardia.eventos", "k": "function", "l": "desde_dict", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.generador", "x": 572.4450889239745, "y": 730.966359218821, "r": 13.0, "c": "#7c3aed", "g": "guardia.generador", "k": "module", "l": "generador", "m": 20.0, "nu": 0, "ci": 0, "d": "Corpus de inyecciones escrito por un modelo que no ha visto el sistema.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.generador.Admision", "x": 646.9594770286845, "y": 750.2025862744995, "r": 9.27, "c": "#f59e0b", "g": "guardia.generador", "k": "class", "l": "Admision", "m": 5.0, "nu": 0, "ci": 0, "d": "Si el corpus generado sirve para medir, y por que no si no sirve.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.generador.Encargo", "x": 502.08117441055015, "y": 731.1362757823728, "r": 8.0, "c": "#f59e0b", "g": "guardia.generador", "k": "class", "l": "Encargo", "m": 5.0, "nu": 0, "ci": 0, "d": "Que se le pide al generador, en lenguaje llano.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.generador.Generacion", "x": 605.457826277077, "y": 666.6195897866687, "r": 8.9, "c": "#f59e0b", "g": "guardia.generador", "k": "class", "l": "Generacion", "m": 5.0, "nu": 0, "ci": 0, "d": "Un encargo, lo que devolvio el modelo y si entra.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.generador.Generacion.texto", "x": 539.7812781704012, "y": 776.3648696980492, "r": 3.0, "c": "#60a5fa", "g": "guardia.generador", "k": "method", "l": "texto", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.generador.GeneradorCiego", "x": 521.3936698583958, "y": 656.4726151207456, "r": 8.9, "c": "#f59e0b", "g": "guardia.generador", "k": "class", "l": "GeneradorCiego", "m": 5.0, "nu": 0, "ci": 0, "d": "Encarga corpus de inyecciones a un modelo y admite solo los que sirven para medir.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.generador.GeneradorCiego._admitir", "x": 517.2464901998368, "y": 689.4792455006866, "r": 5.01, "c": "#60a5fa", "g": "guardia.generador", "k": "method", "l": "_admitir", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.generador.GeneradorCiego.generar", "x": 595.568846668444, "y": 758.4036883428837, "r": 5.2, "c": "#60a5fa", "g": "guardia.generador", "k": "method", "l": "generar", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.generador.GeneradorCiego.generar_varias", "x": 559.1147919777513, "y": 698.843094839769, "r": 4.27, "c": "#60a5fa", "g": "guardia.generador", "k": "method", "l": "generar_varias", "m": 2.0, "nu": 0, "ci": 0, "d": "N pasadas completas e independientes de todos los encargos.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.generador.Rechazo", "x": 633.2727924055521, "y": 770.7508319936403, "r": 8.0, "c": "#f59e0b", "g": "guardia.generador", "k": "class", "l": "Rechazo", "m": 5.0, "nu": 0, "ci": 0, "d": "Por que NO entro un encargo. Que sean categorias y no solo un texto es la misma", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.generador.VarianzaGeneracion", "x": 577.7443027138356, "y": 712.5001526560071, "r": 8.9, "c": "#f59e0b", "g": "guardia.generador", "k": "class", "l": "VarianzaGeneracion", "m": 5.0, "nu": 0, "ci": 0, "d": "N pasadas del generador, para leer la estabilidad de cada resultado por objetivo.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.generador.VarianzaGeneracion.distribucion", "x": 608.9649801850634, "y": 730.778957500783, "r": 3.9, "c": "#60a5fa", "g": "guardia.generador", "k": "method", "l": "distribucion", "m": 2.0, "nu": 0, "ci": 0, "d": "Por objetivo, en cuantas de las N pasadas cayo en cada resultado. La clave es", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.generador.VarianzaGeneracion.n", "x": 525.7638821427092, "y": 654.1109071099593, "r": 3.0, "c": "#60a5fa", "g": "guardia.generador", "k": "method", "l": "n", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.generador.VarianzaGeneracion.objetivos", "x": 568.180524223333, "y": 664.4875066908726, "r": 3.0, "c": "#60a5fa", "g": "guardia.generador", "k": "method", "l": "objetivos", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.generador.VarianzaGeneracion.unanime", "x": 521.1696440159204, "y": 722.259048969093, "r": 3.9, "c": "#60a5fa", "g": "guardia.generador", "k": "method", "l": "unanime", "m": 2.0, "nu": 0, "ci": 0, "d": "Todas las pasadas dieron el mismo resultado: la senal es estable para ese", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.generador.VarianzaGeneracion.valido", "x": 490.0658699959912, "y": 811.5611781408745, "r": 3.0, "c": "#60a5fa", "g": "guardia.generador", "k": "method", "l": "valido", "m": 2.0, "nu": 0, "ci": 0, "d": "Una pasada entera caida por canal (todos los encargos `canal_caido`) invalida", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.generador._c2_del_incidente", "x": 619.6440821082365, "y": 803.1774125162594, "r": 4.9, "c": "#10b981", "g": "guardia.generador", "k": "function", "l": "_c2_del_incidente", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.generador._conserva_el_ataque", "x": 539.099426373747, "y": 812.1102531406799, "r": 5.27, "c": "#10b981", "g": "guardia.generador", "k": "function", "l": "_conserva_el_ataque", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.generador._formato_de_cable", "x": 501.81652575195466, "y": 731.4971978554709, "r": 4.9, "c": "#10b981", "g": "guardia.generador", "k": "function", "l": "_formato_de_cable", "m": 2.0, "nu": 0, "ci": 0, "d": "La especificacion del JSONL, derivada de las dataclases y no copiada a mano.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.generador._lineas_jsonl", "x": 502.4042230093793, "y": 751.3921972344281, "r": 4.9, "c": "#10b981", "g": "guardia.generador", "k": "function", "l": "_lineas_jsonl", "m": 2.0, "nu": 0, "ci": 0, "d": "Se queda con las lineas que son un objeto JSON y tira el resto.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.generador._texto_nuevo", "x": 593.8497292706014, "y": 711.053686616425, "r": 5.27, "c": "#10b981", "g": "guardia.generador", "k": "function", "l": "_texto_nuevo", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.generador._textos", "x": 583.2376751610408, "y": 804.8747678547165, "r": 4.9, "c": "#10b981", "g": "guardia.generador", "k": "function", "l": "_textos", "m": 2.0, "nu": 0, "ci": 0, "d": "Todo campo de texto que un atacante controla en una maquina comprometida.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.generador.cargar_base", "x": 607.8309315030932, "y": 674.9246845755221, "r": 5.27, "c": "#10b981", "g": "guardia.generador", "k": "function", "l": "cargar_base", "m": 2.0, "nu": 0, "ci": 0, "d": "El incidente base, parseado y en crudo: uno para la firma, el otro para el prompt.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.informe", "x": 282.0138818828831, "y": 373.67258884853857, "r": 13.0, "c": "#7c3aed", "g": "guardia.informe", "k": "module", "l": "informe", "m": 20.0, "nu": 0, "ci": 0, "d": "El informe de estado: una proyeccion de SOLO LECTURA del plano de control a HTML.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.informe._Entrada", "x": 204.7381104694324, "y": 388.15204522431367, "r": 8.0, "c": "#f59e0b", "g": "guardia.informe", "k": "class", "l": "_Entrada", "m": 5.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.informe._Estado", "x": 262.908024038782, "y": 301.8573925041079, "r": 8.0, "c": "#f59e0b", "g": "guardia.informe", "k": "class", "l": "_Estado", "m": 5.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.informe._Veredicto", "x": 308.6144029275181, "y": 388.81700306229106, "r": 8.0, "c": "#f59e0b", "g": "guardia.informe", "k": "class", "l": "_Veredicto", "m": 5.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.informe._chip_actor", "x": 205.80731690367293, "y": 432.9728340556444, "r": 5.56, "c": "#10b981", "g": "guardia.informe", "k": "function", "l": "_chip_actor", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.informe._e", "x": 359.87491308855454, "y": 366.8555550803377, "r": 6.01, "c": "#10b981", "g": "guardia.informe", "k": "function", "l": "_e", "m": 2.0, "nu": 0, "ci": 0, "d": "Escapa cualquier valor para HTML. El log es dato hostil; nada entra como markup.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.informe._fila", "x": 358.30050012980195, "y": 395.88358671288125, "r": 5.56, "c": "#10b981", "g": "guardia.informe", "k": "function", "l": "_fila", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.informe._tarjeta_estado", "x": 319.2411218363676, "y": 402.5915526152541, "r": 5.56, "c": "#10b981", "g": "guardia.informe", "k": "function", "l": "_tarjeta_estado", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.informe._tarjeta_integridad", "x": 290.4759444754536, "y": 316.75191174165195, "r": 5.27, "c": "#10b981", "g": "guardia.informe", "k": "function", "l": "_tarjeta_integridad", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.informe.render", "x": 290.55165867248104, "y": 292.5709279607265, "r": 6.01, "c": "#10b981", "g": "guardia.informe", "k": "function", "l": "render", "m": 2.0, "nu": 0, "ci": 0, "d": "La proyeccion completa a HTML. Funcion pura: los datos entran ya leidos y el", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.invariantes", "x": 755.3579933371683, "y": 443.8602615002999, "r": 13.0, "c": "#7c3aed", "g": "guardia.invariantes", "k": "module", "l": "invariantes", "m": 20.0, "nu": 0, "ci": 0, "d": "Los invariantes intocables. Regla 7: ninguna politica generada puede tocarlos.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.invariantes.Config", "x": 792.8527156922078, "y": 416.98714683940386, "r": 9.27, "c": "#f59e0b", "g": "guardia.invariantes", "k": "class", "l": "Config", "m": 5.0, "nu": 0, "ci": 0, "d": "Que es intocable en esta instalacion. Se fija en el despliegue, no en runtime", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.invariantes.Violacion", "x": 759.8314945919277, "y": 380.0541785291062, "r": 9.56, "c": "#f59e0b", "g": "guardia.invariantes", "k": "class", "l": "Violacion", "m": 5.0, "nu": 0, "ci": 0, "d": "Una propuesta choca con un invariante. Siempre BLOCKER.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.invariantes.Violacion.__str__", "x": 673.5793662157092, "y": 517.2350525299951, "r": 3.0, "c": "#60a5fa", "g": "guardia.invariantes", "k": "method", "l": "__str__", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.invariantes._canal_admin", "x": 710.9621776875406, "y": 521.4448937832798, "r": 4.9, "c": "#10b981", "g": "guardia.invariantes", "k": "function", "l": "_canal_admin", "m": 2.0, "nu": 0, "ci": 0, "d": "El canal de administracion no se corta. Es el invariante anti-lockout: la", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.invariantes._capacidad_de_registro", "x": 796.9640762188774, "y": 370.8016220824957, "r": 4.9, "c": "#10b981", "g": "guardia.invariantes", "k": "function", "l": "_capacidad_de_registro", "m": 2.0, "nu": 0, "ci": 0, "d": "Sin write/fsync/rename no hay log de auditoria ni rollback atomico. Denegarlas", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.invariantes._ruta_toca_protegida", "x": 817.7263659815518, "y": 463.75405425384866, "r": 4.9, "c": "#10b981", "g": "guardia.invariantes", "k": "function", "l": "_ruta_toca_protegida", "m": 2.0, "nu": 0, "ci": 0, "d": "True si `ruta` es la protegida o esta por encima de ella.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.invariantes._rutas_protegidas", "x": 719.6622979911731, "y": 432.71690336443777, "r": 5.27, "c": "#10b981", "g": "guardia.invariantes", "k": "function", "l": "_rutas_protegidas", "m": 2.0, "nu": 0, "ci": 0, "d": "Plano de control, log de auditoria y codigo propio: ni confinar ni denegar.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.invariantes.comprobar", "x": 822.1983761306614, "y": 490.6428288904124, "r": 5.8, "c": "#10b981", "g": "guardia.invariantes", "k": "function", "l": "comprobar", "m": 2.0, "nu": 0, "ci": 0, "d": "Todas las violaciones de una propuesta. Lista vacia = no toca invariantes.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.invariantes.es_admisible", "x": 724.7905796102146, "y": 416.24151458036556, "r": 4.9, "c": "#10b981", "g": "guardia.invariantes", "k": "function", "l": "es_admisible", "m": 2.0, "nu": 0, "ci": 0, "d": "Azucar para gates. Admisible aqui solo significa \"no toca invariantes\".", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.kill_switch", "x": 344.35103246904487, "y": 721.3946395162893, "r": 13.0, "c": "#7c3aed", "g": "guardia.kill_switch", "k": "module", "l": "kill_switch", "m": 20.0, "nu": 0, "ci": 0, "d": "El interruptor de emergencia. Regla 8: se construye antes que nada que escriba.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.kill_switch.CapaCongelada", "x": 338.70833150795795, "y": 680.5506614288303, "r": 8.9, "c": "#f59e0b", "g": "guardia.kill_switch", "k": "class", "l": "CapaCongelada", "m": 5.0, "nu": 0, "ci": 0, "d": "Se intento aplicar politica con la capa de IA congelada. Nunca es recuperable", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.kill_switch.CapaCongelada.__init__", "x": 366.68283280545074, "y": 709.2702212518502, "r": 3.0, "c": "#60a5fa", "g": "guardia.kill_switch", "k": "method", "l": "__init__", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.kill_switch.Estado", "x": 359.30304281180736, "y": 694.4315403517977, "r": 9.56, "c": "#f59e0b", "g": "guardia.kill_switch", "k": "class", "l": "Estado", "m": 5.0, "nu": 0, "ci": 0, "d": "Estado de la capa de IA, tal y como esta en disco ahora mismo.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.kill_switch.Estado.operativo", "x": 279.53560933243324, "y": 724.1080679973165, "r": 3.0, "c": "#60a5fa", "g": "guardia.kill_switch", "k": "method", "l": "operativo", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.kill_switch.Interruptor", "x": 375.45879963152646, "y": 778.6784756554886, "r": 8.9, "c": "#f59e0b", "g": "guardia.kill_switch", "k": "class", "l": "Interruptor", "m": 5.0, "nu": 0, "ci": 0, "d": "El interruptor de emergencia sobre un directorio de control.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.kill_switch.Interruptor.__init__", "x": 371.7293638213911, "y": 662.4053812329306, "r": 4.27, "c": "#60a5fa", "g": "guardia.kill_switch", "k": "method", "l": "__init__", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.kill_switch.Interruptor._escribir", "x": 283.81982565729817, "y": 644.691734785556, "r": 4.27, "c": "#60a5fa", "g": "guardia.kill_switch", "k": "method", "l": "_escribir", "m": 2.0, "nu": 0, "ci": 0, "d": "Escritura atomica: un corte a medias dejaria el estado ilegible, y aunque", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.kill_switch.Interruptor.congelar", "x": 337.1333642570529, "y": 697.4510725024688, "r": 4.8, "c": "#60a5fa", "g": "guardia.kill_switch", "k": "method", "l": "congelar", "m": 2.0, "nu": 0, "ci": 0, "d": "Congela la capa de IA. Idempotente: congelar lo congelado no es un error.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.kill_switch.Interruptor.descongelar", "x": 316.4634764397426, "y": 660.1784123932684, "r": 4.8, "c": "#60a5fa", "g": "guardia.kill_switch", "k": "method", "l": "descongelar", "m": 2.0, "nu": 0, "ci": 0, "d": "Reactiva la capa de IA. Solo un humano, y queda registrado quien fue.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.kill_switch.Interruptor.estado", "x": 392.13646907891007, "y": 640.8508691785302, "r": 4.27, "c": "#60a5fa", "g": "guardia.kill_switch", "k": "method", "l": "estado", "m": 2.0, "nu": 0, "ci": 0, "d": "Lee el estado del disco. Sin fichero o con fichero corrupto: congelado.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.kill_switch.Interruptor.exigir_operativo", "x": 350.1568179082873, "y": 791.5592499509617, "r": 4.27, "c": "#60a5fa", "g": "guardia.kill_switch", "k": "method", "l": "exigir_operativo", "m": 2.0, "nu": 0, "ci": 0, "d": "Puerta obligatoria antes de aplicar cualquier politica. Lee disco, no cache.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.kill_switch._ahora", "x": 350.0707309120571, "y": 668.177381684605, "r": 5.27, "c": "#10b981", "g": "guardia.kill_switch", "k": "function", "l": "_ahora", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.kill_switch.directorio_por_defecto", "x": 278.17298568526064, "y": 749.4727947074571, "r": 4.9, "c": "#10b981", "g": "guardia.kill_switch", "k": "function", "l": "directorio_por_defecto", "m": 2.0, "nu": 0, "ci": 0, "d": "Donde vive el estado de control.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.motor", "x": 464.0801702217578, "y": 222.80915269673477, "r": 13.0, "c": "#7c3aed", "g": "guardia.motor", "k": "module", "l": "motor", "m": 20.0, "nu": 0, "ci": 0, "d": "El motor de replay: ¿esta propuesta dispara sobre este evento? Determinista.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.motor.ReplayNoSoportado", "x": 412.1799858650183, "y": 283.4405301975189, "r": 8.9, "c": "#f59e0b", "g": "guardia.motor", "k": "class", "l": "ReplayNoSoportado", "m": 5.0, "nu": 0, "ci": 0, "d": "El tipo de propuesta no se puede replayar en este motor determinista. No es un", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.motor._dispara_confinamiento", "x": 522.2571570890505, "y": 281.8329613790001, "r": 5.27, "c": "#10b981", "g": "guardia.motor", "k": "function", "l": "_dispara_confinamiento", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.motor._dispara_filtro", "x": 545.0429522484058, "y": 240.78239857915773, "r": 4.9, "c": "#10b981", "g": "guardia.motor", "k": "function", "l": "_dispara_filtro", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.motor._ruta_bajo", "x": 424.9469173456145, "y": 286.65265702389246, "r": 4.9, "c": "#10b981", "g": "guardia.motor", "k": "function", "l": "_ruta_bajo", "m": 2.0, "nu": 0, "ci": 0, "d": "True si `ruta` esta dentro de `prefijo` por segmentos (no por prefijo de cadena:", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.motor.dispara", "x": 470.0268753215615, "y": 292.69290872271245, "r": 5.8, "c": "#10b981", "g": "guardia.motor", "k": "function", "l": "dispara", "m": 2.0, "nu": 0, "ci": 0, "d": "¿La politica de la propuesta actua sobre este evento? Determinista y total para", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.motor.eventos_que_disparan", "x": 473.69803482453506, "y": 231.9265810868385, "r": 5.27, "c": "#10b981", "g": "guardia.motor", "k": "function", "l": "eventos_que_disparan", "m": 2.0, "nu": 0, "ci": 0, "d": "Los eventos del corpus sobre los que la propuesta actua. La base de los gates", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.nftables", "x": 720.3036064947294, "y": 685.6721127833027, "r": 13.0, "c": "#7c3aed", "g": "guardia.nftables", "k": "module", "l": "nftables", "m": 20.0, "nu": 0, "ci": 0, "d": "El punto de aplicacion real: traduce la politica activa a reglas de nftables.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.nftables.Aplicacion", "x": 648.804359315945, "y": 721.3805043842995, "r": 8.9, "c": "#f59e0b", "g": "guardia.nftables", "k": "class", "l": "Aplicacion", "m": 5.0, "nu": 0, "ci": 0, "d": "El resultado de intentar enforcar. `reglas` es el script nft (siempre presente,", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.nftables._clasificar", "x": 802.4276878183024, "y": 751.2465584244928, "r": 5.56, "c": "#10b981", "g": "guardia.nftables", "k": "function", "l": "_clasificar", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.nftables._script", "x": 639.9651595675489, "y": 611.8511270094557, "r": 5.27, "c": "#10b981", "g": "guardia.nftables", "k": "function", "l": "_script", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.nftables._traducir", "x": 795.7655330525039, "y": 675.249862078675, "r": 4.9, "c": "#10b981", "g": "guardia.nftables", "k": "function", "l": "_traducir", "m": 2.0, "nu": 0, "ci": 0, "d": "Una politica -> (cadena, match nft, None) si se traduce; (None, None, motivo) si", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.nftables.aplicar", "x": 731.5085524879987, "y": 690.4861215591251, "r": 5.8, "c": "#10b981", "g": "guardia.nftables", "k": "function", "l": "aplicar", "m": 2.0, "nu": 0, "ci": 0, "d": "Traduce y, solo si `dry_run` es False, empuja a nftables con `nft -f -`.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.nftables.ruleset", "x": 656.9417782063489, "y": 757.0814411943433, "r": 5.27, "c": "#10b981", "g": "guardia.nftables", "k": "function", "l": "ruleset", "m": 2.0, "nu": 0, "ci": 0, "d": "La politica activa como script nft. Funcion pura: ni root, ni kernel, ni efectos.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.politica", "x": 203.789633203192, "y": 512.2492286328762, "r": 13.0, "c": "#7c3aed", "g": "guardia.politica", "k": "module", "l": "politica", "m": 20.0, "nu": 0, "ci": 0, "d": "La gramatica cerrada de propuestas. Regla 3: lo que no encaja se descarta.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.politica.Accion", "x": 166.91105981621274, "y": 457.0580158400285, "r": 8.0, "c": "#f59e0b", "g": "guardia.politica", "k": "class", "l": "Accion", "m": 5.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.politica.Confinamiento", "x": 181.63400634643384, "y": 438.34524742689126, "r": 8.9, "c": "#f59e0b", "g": "guardia.politica", "k": "class", "l": "Confinamiento", "m": 5.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.politica.Direccion", "x": 265.75547775335406, "y": 524.7980764000628, "r": 8.0, "c": "#f59e0b", "g": "guardia.politica", "k": "class", "l": "Direccion", "m": 5.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.politica.FiltroRed", "x": 155.11730959162577, "y": 512.5882147415003, "r": 8.9, "c": "#f59e0b", "g": "guardia.politica", "k": "class", "l": "FiltroRed", "m": 5.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.politica.FiltroRed.afecta_a", "x": 162.91066400722286, "y": 498.27688725559454, "r": 3.0, "c": "#60a5fa", "g": "guardia.politica", "k": "method", "l": "afecta_a", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.politica.Motor", "x": 222.84096284783368, "y": 440.5746117058262, "r": 8.0, "c": "#f59e0b", "g": "guardia.politica", "k": "class", "l": "Motor", "m": 5.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.politica.Propuesta", "x": 272.4847627936181, "y": 479.82401437987687, "r": 8.9, "c": "#f59e0b", "g": "guardia.politica", "k": "class", "l": "Propuesta", "m": 5.0, "nu": 0, "ci": 0, "d": "Una propuesta ya validada estructuralmente. Validada != aprobada: todavia le", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.politica.PropuestaInvalida", "x": 237.95487149363476, "y": 514.5231307946077, "r": 10.38, "c": "#f59e0b", "g": "guardia.politica", "k": "class", "l": "PropuestaInvalida", "m": 5.0, "nu": 0, "ci": 0, "d": "La propuesta no encaja en la gramatica. Se descarta sin interpretarse.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.politica.ReglaDeteccion", "x": 272.25000411815455, "y": 531.7845058120552, "r": 8.9, "c": "#f59e0b", "g": "guardia.politica", "k": "class", "l": "ReglaDeteccion", "m": 5.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.politica.TipoPolitica", "x": 171.89409127994048, "y": 588.6432757537092, "r": 8.0, "c": "#f59e0b", "g": "guardia.politica", "k": "class", "l": "TipoPolitica", "m": 5.0, "nu": 0, "ci": 0, "d": "Que clase de artefacto declarativo propone la IA. Conjunto cerrado.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.politica._cidr", "x": 144.6865112278088, "y": 519.8984971433907, "r": 5.27, "c": "#10b981", "g": "guardia.politica", "k": "function", "l": "_cidr", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.politica._cuerpo", "x": 275.95327185941295, "y": 586.7338648618311, "r": 6.7, "c": "#10b981", "g": "guardia.politica", "k": "function", "l": "_cuerpo", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.politica._demasiado_anidado", "x": 212.4078028051874, "y": 487.48864034144276, "r": 4.9, "c": "#10b981", "g": "guardia.politica", "k": "function", "l": "_demasiado_anidado", "m": 2.0, "nu": 0, "ci": 0, "d": "Cuenta profundidad estructural sin parsear: O(n) con salida temprana.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.politica._enum", "x": 142.12704435764257, "y": 431.6151303275169, "r": 5.56, "c": "#10b981", "g": "guardia.politica", "k": "function", "l": "_enum", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.politica._lista_texto", "x": 223.94054079778252, "y": 481.07489049394053, "r": 5.56, "c": "#10b981", "g": "guardia.politica", "k": "function", "l": "_lista_texto", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.politica._puertos", "x": 197.4330142330973, "y": 470.40050672854176, "r": 5.27, "c": "#10b981", "g": "guardia.politica", "k": "function", "l": "_puertos", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.politica._texto", "x": 131.96983453423226, "y": 438.0812845709568, "r": 5.56, "c": "#10b981", "g": "guardia.politica", "k": "function", "l": "_texto", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.politica.desde_dict", "x": 193.73351532146862, "y": 443.72167889825903, "r": 6.7, "c": "#10b981", "g": "guardia.politica", "k": "function", "l": "desde_dict", "m": 2.0, "nu": 0, "ci": 0, "d": "Valida un dict contra la gramatica. Cualquier desviacion es PropuestaInvalida.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.politica.desde_json", "x": 285.6954768152872, "y": 467.6010821134431, "r": 6.38, "c": "#10b981", "g": "guardia.politica", "k": "function", "l": "desde_json", "m": 2.0, "nu": 0, "ci": 0, "d": "Punto de entrada para la salida cruda del LLM. Texto hostil por defecto.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.transporte", "x": 715.9004539614617, "y": 285.1502118240869, "r": 13.0, "c": "#7c3aed", "g": "guardia.transporte", "k": "module", "l": "transporte", "m": 20.0, "nu": 0, "ci": 0, "d": "El canal hacia un modelo. Solo inferencia, nada de herramientas (ADR 0006).", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.transporte.ModeloProhibido", "x": 762.2502549983828, "y": 263.71375028055377, "r": 8.9, "c": "#f59e0b", "g": "guardia.transporte", "k": "class", "l": "ModeloProhibido", "m": 5.0, "nu": 0, "ci": 0, "d": "El comando pide un modelo por debajo del suelo de evaluacion.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.transporte.Transporte", "x": 739.1135705547822, "y": 202.57943028103443, "r": 8.0, "c": "#f59e0b", "g": "guardia.transporte", "k": "class", "l": "Transporte", "m": 5.0, "nu": 0, "ci": 0, "d": "Canal hacia un modelo: recibe el prompt completo y devuelve el texto crudo.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.transporte.Transporte.invocar", "x": 690.8432566594118, "y": 272.1863969467337, "r": 3.0, "c": "#60a5fa", "g": "guardia.transporte", "k": "method", "l": "invocar", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.transporte.TransporteCLI", "x": 793.7878265008142, "y": 284.706463101665, "r": 9.8, "c": "#f59e0b", "g": "guardia.transporte", "k": "class", "l": "TransporteCLI", "m": 5.0, "nu": 0, "ci": 0, "d": "Habla con el modelo a traves de su CLI oficial, por stdin.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.transporte.TransporteCLI.__post_init__", "x": 716.7869269320706, "y": 315.4808567710197, "r": 3.9, "c": "#60a5fa", "g": "guardia.transporte", "k": "method", "l": "__post_init__", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.transporte.TransporteCLI.invocar", "x": 783.9022712100685, "y": 294.4431261837526, "r": 3.9, "c": "#60a5fa", "g": "guardia.transporte", "k": "method", "l": "invocar", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.transporte.TransporteFallido", "x": 663.775989899235, "y": 315.14401152076186, "r": 8.9, "c": "#f59e0b", "g": "guardia.transporte", "k": "class", "l": "TransporteFallido", "m": 5.0, "nu": 0, "ci": 0, "d": "El canal no respondio: binario ausente, timeout o salida != 0.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.transporte.comprobar_modelo", "x": 658.1589479422252, "y": 258.45277389866027, "r": 5.27, "c": "#10b981", "g": "guardia.transporte", "k": "function", "l": "comprobar_modelo", "m": 2.0, "nu": 0, "ci": 0, "d": "Rechaza un comando que pida un modelo bajo el suelo. Sin bandera que lo pise.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.transporte.extraer_json", "x": 663.3212209337979, "y": 365.284647341366, "r": 5.27, "c": "#10b981", "g": "guardia.transporte", "k": "function", "l": "extraer_json", "m": 2.0, "nu": 0, "ci": 0, "d": "Recorta el primer objeto JSON completo de la respuesta del modelo.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.triaje", "x": 485.56517314363646, "y": 812.1664392173298, "r": 13.0, "c": "#7c3aed", "g": "guardia.triaje", "k": "module", "l": "triaje", "m": 20.0, "nu": 0, "ci": 0, "d": "T2 — el triaje. Convierte un incidente en una propuesta. No tiene autoridad.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.triaje.ContextoIncidente", "x": 426.7467991649975, "y": 750.1993546499644, "r": 8.9, "c": "#f59e0b", "g": "guardia.triaje", "k": "class", "l": "ContextoIncidente", "m": 5.0, "nu": 0, "ci": 0, "d": "Lo que se le pasa al proveedor. Todo aqui es dato hostil, y se dice.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.triaje.ContextoIncidente.como_texto_no_confiable", "x": 566.6358483861123, "y": 863.3297800897542, "r": 3.0, "c": "#60a5fa", "g": "guardia.triaje", "k": "method", "l": "como_texto_no_confiable", "m": 2.0, "nu": 0, "ci": 0, "d": "Render para un proveedor LLM: cada evento rotulado como no confiable. El", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.triaje.Proveedor", "x": 442.65328373346733, "y": 794.6323548473889, "r": 8.0, "c": "#f59e0b", "g": "guardia.triaje", "k": "class", "l": "Proveedor", "m": 5.0, "nu": 0, "ci": 0, "d": "Produce el JSON crudo de una propuesta a partir del contexto. Puede mentir,", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.triaje.Proveedor.sugerir", "x": 563.5204857424332, "y": 793.2113195408402, "r": 3.0, "c": "#60a5fa", "g": "guardia.triaje", "k": "method", "l": "sugerir", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.triaje.ProveedorHeuristico", "x": 437.1078477155818, "y": 791.8193681577351, "r": 9.27, "c": "#f59e0b", "g": "guardia.triaje", "k": "class", "l": "ProveedorHeuristico", "m": 5.0, "nu": 0, "ci": 0, "d": "Baseline determinista, SIN IA. Camino de recuperacion cuando el LLM no esta.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.triaje.ProveedorHeuristico.sugerir", "x": 501.10935924125533, "y": 730.4919596099129, "r": 4.27, "c": "#60a5fa", "g": "guardia.triaje", "k": "method", "l": "sugerir", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.triaje.ProveedorLLM", "x": 507.1393097362955, "y": 786.8416023142353, "r": 8.9, "c": "#f59e0b", "g": "guardia.triaje", "k": "class", "l": "ProveedorLLM", "m": 5.0, "nu": 0, "ci": 0, "d": "El proveedor con LLM real, conectado por transporte intercambiable (ADR 0006).", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.triaje.ProveedorLLM.sugerir", "x": 460.22212500369324, "y": 856.1204888332846, "r": 3.9, "c": "#60a5fa", "g": "guardia.triaje", "k": "method", "l": "sugerir", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.triaje.Triaje", "x": 505.54995836344256, "y": 744.3639737001466, "r": 9.27, "c": "#f59e0b", "g": "guardia.triaje", "k": "class", "l": "Triaje", "m": 5.0, "nu": 0, "ci": 0, "d": "Pide una propuesta al proveedor y la pasa por la gramatica cerrada. Nada mas.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.triaje.Triaje.proponer", "x": 412.57137783620715, "y": 776.7056108906576, "r": 4.56, "c": "#60a5fa", "g": "guardia.triaje", "k": "method", "l": "proponer", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.triaje._es_externa", "x": 451.881248491074, "y": 744.7313922138655, "r": 4.9, "c": "#10b981", "g": "guardia.triaje", "k": "function", "l": "_es_externa", "m": 2.0, "nu": 0, "ci": 0, "d": "Externa = fuera de los rangos internos que este despliegue considera propios.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.triaje._es_sin_propuesta", "x": 440.8152475410792, "y": 763.6084687466063, "r": 4.9, "c": "#10b981", "g": "guardia.triaje", "k": "function", "l": "_es_sin_propuesta", "m": 2.0, "nu": 0, "ci": 0, "d": "", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}, {"id": "guardia.triaje._prioridad", "x": 423.7559929994603, "y": 853.5591510136758, "r": 4.9, "c": "#10b981", "g": "guardia.triaje", "k": "function", "l": "_prioridad", "m": 2.0, "nu": 0, "ci": 0, "d": "Orden de sospecha entre redes externas candidatas, para `min()`.", "ec": "", "ee": "", "el": [], "tc": 0, "ag": []}], ARISTAS = [[11, 8, 1, 0], [11, 9, 1, 0], [11, 10, 1, 0], [11, 15, 1, 0], [11, 16, 1, 0], [12, 9, 1, 0], [12, 10, 1, 0], [13, 12, 1, 0], [14, 8, 1, 0], [14, 10, 1, 0], [16, 17, 1, 0], [21, 22, 1, 0], [22, 25, 1, 0], [22, 26, 1, 0], [23, 21, 1, 0], [23, 26, 1, 0], [23, 29, 1, 0], [23, 30, 1, 0], [23, 31, 1, 0], [24, 22, 1, 0], [24, 28, 1, 0], [24, 31, 1, 0], [31, 30, 1, 0], [34, 35, 1, 0], [34, 36, 1, 0], [35, 46, 1, 0], [35, 170, 1, 0], [58, 79, 1, 0], [58, 81, 1, 0], [59, 58, 1, 0], [59, 63, 1, 0], [60, 59, 1, 0], [60, 72, 1, 0], [66, 64, 1, 0], [67, 64, 1, 0], [68, 64, 1, 0], [70, 64, 1, 0], [77, 76, 1, 0], [82, 261, 1, 0], [83, 261, 1, 0], [86, 105, 1, 0], [87, 33, 1, 0], [87, 102, 1, 0], [87, 105, 1, 0], [87, 107, 1, 0], [87, 282, 1, 0], [88, 57, 1, 0], [88, 85, 1, 0], [88, 101, 1, 0], [88, 105, 1, 0], [88, 151, 1, 0], [88, 267, 1, 0], [89, 2, 1, 0], [89, 102, 1, 0], [90, 2, 1, 0], [90, 105, 1, 0], [91, 6, 1, 0], [91, 105, 1, 0], [91, 112, 1, 0], [91, 170, 1, 0], [91, 262, 1, 0], [92, 2, 1, 0], [92, 105, 1, 0], [93, 102, 1, 0], [93, 262, 1, 0], [94, 6, 1, 0], [94, 241, 1, 0], [95, 105, 1, 0], [96, 101, 1, 0], [96, 104, 1, 0], [96, 108, 1, 0], [96, 177, 1, 0], [96, 194, 1, 0], [96, 267, 1, 0], [97, 105, 1, 0], [97, 204, 1, 0], [98, 102, 1, 0], [98, 105, 1, 0], [98, 106, 1, 0], [98, 107, 1, 0], [98, 170, 1, 0], [98, 278, 1, 0], [98, 282, 1, 0], [99, 102, 1, 0], [100, 206, 1, 0], [100, 213, 1, 0], [100, 262, 1, 0], [102, 6, 1, 0], [102, 105, 1, 0], [102, 112, 1, 0], [102, 131, 1, 0], [102, 170, 1, 0], [104, 108, 1, 0], [105, 220, 1, 0], [106, 101, 1, 0], [106, 151, 1, 0], [106, 267, 1, 0], [107, 101, 1, 0], [107, 267, 1, 0], [107, 278, 1, 0], [107, 280, 1, 0], [109, 103, 1, 0], [110, 109, 1, 0], [113, 120, 1, 0], [114, 120, 1, 0], [114, 213, 1, 0], [115, 120, 1, 0], [115, 235, 1, 0], [116, 120, 1, 0], [118, 117, 1, 0], [118, 120, 1, 0], [132, 6, 1, 0], [132, 128, 1, 0], [133, 125, 1, 0], [133, 139, 1, 0], [134, 129, 1, 0], [135, 138, 1, 0], [136, 138, 1, 0], [137, 133, 1, 0], [137, 135, 1, 0], [137, 138, 1, 0], [138, 139, 1, 0], [140, 133, 1, 0], [141, 3, 1, 0], [141, 125, 1, 0], [141, 133, 1, 0], [141, 135, 1, 0], [142, 125, 1, 0], [142, 134, 1, 0], [142, 136, 1, 0], [142, 137, 1, 0], [144, 15, 1, 0], [144, 133, 1, 0], [144, 135, 1, 0], [152, 155, 1, 0], [152, 157, 1, 0], [152, 272, 1, 0], [153, 147, 1, 0], [153, 152, 1, 0], [166, 161, 1, 0], [166, 169, 1, 0], [167, 162, 1, 0], [167, 163, 1, 0], [167, 169, 1, 0], [168, 162, 1, 0], [168, 164, 1, 0], [168, 169, 1, 0], [169, 162, 1, 0], [170, 159, 1, 0], [170, 171, 1, 0], [171, 162, 1, 0], [171, 165, 1, 0], [178, 171, 1, 0], [178, 173, 1, 0], [178, 189, 1, 0], [178, 192, 1, 0], [179, 173, 1, 0], [179, 175, 1, 0], [179, 178, 1, 0], [179, 190, 1, 0], [179, 191, 1, 0], [180, 179, 1, 0], [180, 182, 1, 0], [186, 183, 1, 0], [189, 188, 1, 0], [192, 193, 1, 0], [194, 170, 1, 0], [199, 200, 1, 0], [201, 199, 1, 0], [201, 200, 1, 0], [202, 199, 1, 0], [202, 200, 1, 0], [203, 200, 1, 0], [204, 200, 1, 0], [204, 201, 1, 0], [204, 202, 1, 0], [204, 203, 1, 0], [209, 207, 1, 0], [210, 207, 1, 0], [212, 207, 1, 0], [212, 211, 1, 0], [213, 206, 1, 0], [214, 213, 1, 0], [221, 19, 1, 0], [221, 228, 1, 0], [223, 3, 1, 0], [223, 218, 1, 0], [223, 222, 1, 0], [223, 227, 1, 0], [224, 3, 1, 0], [224, 218, 1, 0], [224, 222, 1, 0], [224, 227, 1, 0], [225, 218, 1, 0], [226, 216, 1, 0], [226, 225, 1, 0], [231, 233, 1, 0], [234, 230, 1, 0], [234, 231, 1, 0], [234, 232, 1, 0], [235, 234, 1, 0], [238, 240, 1, 0], [241, 237, 1, 0], [241, 238, 1, 0], [241, 239, 1, 0], [242, 238, 1, 0], [242, 239, 1, 0], [254, 251, 1, 0], [255, 245, 1, 0], [255, 247, 1, 0], [255, 252, 1, 0], [255, 254, 1, 0], [255, 257, 1, 0], [255, 258, 1, 0], [255, 259, 1, 0], [255, 260, 1, 0], [257, 251, 1, 0], [258, 251, 1, 0], [259, 251, 1, 0], [260, 251, 1, 0], [261, 250, 1, 0], [261, 251, 1, 0], [261, 255, 1, 0], [261, 257, 1, 0], [261, 258, 1, 0], [261, 260, 1, 0], [262, 251, 1, 0], [262, 256, 1, 0], [262, 261, 1, 0], [268, 271, 1, 0], [269, 270, 1, 0], [271, 264, 1, 0], [279, 284, 1, 0], [279, 286, 1, 0], [281, 272, 1, 0], [283, 262, 1, 0], [283, 274, 1, 0], [283, 285, 1, 0], [1, 2, 0, 0], [1, 3, 0, 0], [4, 3, 0, 0], [5, 6, 0, 0], [5, 15, 0, 0], [5, 16, 0, 0], [5, 17, 0, 0], [7, 6, 0, 0], [8, 6, 0, 0], [9, 6, 0, 0], [10, 6, 0, 0], [11, 6, 0, 0], [12, 6, 0, 0], [13, 6, 0, 0], [14, 6, 0, 0], [18, 19, 0, 0], [18, 25, 0, 0], [18, 26, 0, 0], [18, 28, 0, 0], [18, 29, 0, 0], [18, 30, 0, 0], [18, 31, 0, 0], [20, 19, 0, 0], [21, 19, 0, 0], [22, 19, 0, 0], [23, 19, 0, 0], [24, 19, 0, 0], [27, 26, 0, 0], [32, 33, 0, 0], [32, 36, 0, 0], [32, 44, 0, 0], [32, 46, 0, 0], [32, 49, 0, 0], [32, 50, 0, 0], [32, 51, 0, 0], [32, 52, 0, 0], [32, 53, 0, 0], [32, 54, 0, 0], [32, 55, 0, 0], [34, 33, 0, 0], [35, 33, 0, 0], [37, 36, 0, 0], [38, 36, 0, 0], [39, 36, 0, 0], [40, 36, 0, 0], [41, 36, 0, 0], [42, 36, 0, 0], [43, 36, 0, 0], [45, 44, 0, 0], [47, 46, 0, 0], [48, 46, 0, 0], [56, 57, 0, 0], [56, 61, 0, 0], [56, 62, 0, 0], [56, 63, 0, 0], [56, 72, 0, 0], [56, 79, 0, 0], [56, 81, 0, 0], [56, 82, 0, 0], [56, 83, 0, 0], [58, 57, 0, 0], [59, 57, 0, 0], [60, 57, 0, 0], [64, 63, 0, 0], [65, 63, 0, 0], [66, 63, 0, 0], [67, 63, 0, 0], [68, 63, 0, 0], [69, 63, 0, 0], [70, 63, 0, 0], [71, 63, 0, 0], [73, 72, 0, 0], [74, 72, 0, 0], [75, 72, 0, 0], [76, 72, 0, 0], [77, 72, 0, 0], [78, 72, 0, 0], [80, 79, 0, 0], [84, 85, 0, 0], [84, 86, 0, 0], [84, 87, 0, 0], [84, 88, 0, 0], [84, 89, 0, 0], [84, 90, 0, 0], [84, 91, 0, 0], [84, 92, 0, 0], [84, 93, 0, 0], [84, 94, 0, 0], [84, 95, 0, 0], [84, 96, 0, 0], [84, 97, 0, 0], [84, 98, 0, 0], [84, 99, 0, 0], [84, 100, 0, 0], [84, 101, 0, 0], [84, 102, 0, 0], [84, 103, 0, 0], [84, 104, 0, 0], [84, 105, 0, 0], [84, 106, 0, 0], [84, 107, 0, 0], [84, 108, 0, 0], [84, 109, 0, 0], [84, 110, 0, 0], [111, 112, 0, 0], [111, 119, 0, 0], [111, 120, 0, 0], [113, 112, 0, 0], [114, 112, 0, 0], [115, 112, 0, 0], [116, 112, 0, 0], [117, 112, 0, 0], [118, 112, 0, 0], [121, 120, 0, 0], [122, 120, 0, 0], [123, 120, 0, 0], [124, 125, 0, 0], [124, 128, 0, 0], [124, 129, 0, 0], [124, 131, 0, 0], [124, 145, 0, 0], [126, 125, 0, 0], [127, 125, 0, 0], [130, 129, 0, 0], [132, 131, 0, 0], [133, 131, 0, 0], [134, 131, 0, 0], [135, 131, 0, 0], [136, 131, 0, 0], [137, 131, 0, 0], [138, 131, 0, 0], [139, 131, 0, 0], [140, 131, 0, 0], [141, 131, 0, 0], [142, 131, 0, 0], [143, 131, 0, 0], [144, 131, 0, 0], [146, 147, 0, 0], [146, 151, 0, 0], [146, 154, 0, 0], [146, 155, 0, 0], [146, 157, 0, 0], [148, 147, 0, 0], [149, 147, 0, 0], [150, 147, 0, 0], [152, 151, 0, 0], [153, 151, 0, 0], [156, 155, 0, 0], [158, 159, 0, 0], [158, 161, 0, 0], [158, 162, 0, 0], [158, 163, 0, 0], [158, 164, 0, 0], [158, 165, 0, 0], [158, 166, 0, 0], [158, 167, 0, 0], [158, 168, 0, 0], [158, 169, 0, 0], [158, 170, 0, 0], [158, 171, 0, 0], [160, 159, 0, 0], [172, 173, 0, 0], [172, 174, 0, 0], [172, 175, 0, 0], [172, 177, 0, 0], [172, 181, 0, 0], [172, 182, 0, 0], [172, 188, 0, 0], [172, 189, 0, 0], [172, 190, 0, 0], [172, 191, 0, 0], [172, 192, 0, 0], [172, 193, 0, 0], [172, 194, 0, 0], [176, 175, 0, 0], [178, 177, 0, 0], [179, 177, 0, 0], [180, 177, 0, 0], [183, 182, 0, 0], [184, 182, 0, 0], [185, 182, 0, 0], [186, 182, 0, 0], [187, 182, 0, 0], [195, 196, 0, 0], [195, 197, 0, 0], [195, 198, 0, 0], [195, 199, 0, 0], [195, 200, 0, 0], [195, 201, 0, 0], [195, 202, 0, 0], [195, 203, 0, 0], [195, 204, 0, 0], [205, 206, 0, 0], [205, 207, 0, 0], [205, 209, 0, 0], [205, 210, 0, 0], [205, 211, 0, 0], [205, 212, 0, 0], [205, 213, 0, 0], [205, 214, 0, 0], [208, 207, 0, 0], [215, 216, 0, 0], [215, 218, 0, 0], [215, 220, 0, 0], [215, 227, 0, 0], [215, 228, 0, 0], [217, 216, 0, 0], [219, 218, 0, 0], [221, 220, 0, 0], [222, 220, 0, 0], [223, 220, 0, 0], [224, 220, 0, 0], [225, 220, 0, 0], [226, 220, 0, 0], [229, 230, 0, 0], [229, 231, 0, 0], [229, 232, 0, 0], [229, 233, 0, 0], [229, 234, 0, 0], [229, 235, 0, 0], [236, 237, 0, 0], [236, 238, 0, 0], [236, 239, 0, 0], [236, 240, 0, 0], [236, 241, 0, 0], [236, 242, 0, 0], [243, 244, 0, 0], [243, 245, 0, 0], [243, 246, 0, 0], [243, 247, 0, 0], [243, 249, 0, 0], [243, 250, 0, 0], [243, 251, 0, 0], [243, 252, 0, 0], [243, 253, 0, 0], [243, 254, 0, 0], [243, 255, 0, 0], [243, 256, 0, 0], [243, 257, 0, 0], [243, 258, 0, 0], [243, 259, 0, 0], [243, 260, 0, 0], [243, 261, 0, 0], [243, 262, 0, 0], [248, 247, 0, 0], [263, 264, 0, 0], [263, 265, 0, 0], [263, 267, 0, 0], [263, 270, 0, 0], [263, 271, 0, 0], [263, 272, 0, 0], [266, 265, 0, 0], [268, 267, 0, 0], [269, 267, 0, 0], [273, 274, 0, 0], [273, 276, 0, 0], [273, 278, 0, 0], [273, 280, 0, 0], [273, 282, 0, 0], [273, 284, 0, 0], [273, 285, 0, 0], [273, 286, 0, 0], [275, 274, 0, 0], [277, 276, 0, 0], [279, 278, 0, 0], [281, 280, 0, 0], [283, 282, 0, 0], [5, 243, 3, 0], [32, 124, 3, 0], [32, 158, 3, 0], [32, 243, 3, 0], [32, 273, 3, 0], [56, 146, 3, 0], [56, 243, 3, 0], [84, 1, 3, 0], [84, 5, 3, 0], [84, 32, 3, 0], [84, 56, 3, 0], [84, 111, 3, 0], [84, 124, 3, 0], [84, 146, 3, 0], [84, 158, 3, 0], [84, 172, 3, 0], [84, 195, 3, 0], [84, 205, 3, 0], [84, 215, 3, 0], [84, 236, 3, 0], [84, 243, 3, 0], [84, 263, 3, 0], [84, 273, 3, 0], [111, 5, 3, 0], [111, 158, 3, 0], [111, 205, 3, 0], [111, 215, 3, 0], [111, 229, 3, 0], [111, 243, 3, 0], [124, 1, 3, 0], [124, 5, 3, 0], [124, 111, 3, 0], [124, 243, 3, 0], [146, 18, 3, 0], [146, 243, 3, 0], [146, 263, 3, 0], [172, 158, 3, 0], [172, 263, 3, 0], [205, 243, 3, 0], [215, 1, 3, 0], [215, 18, 3, 0], [229, 158, 3, 0], [229, 243, 3, 0], [273, 18, 3, 0], [273, 158, 3, 0], [273, 243, 3, 0], [273, 263, 3, 0]], LADO = 1000, GEN_TS = 1786065190;
+const IMPORT_COLOR = '#fb7185', CICLO_COLOR = '#ef4444';
+const OBRA_COLOR = '#e879f9';
+const AGENTES = {};
+const CAPTURAS = [{"id": "20260807T024900-efcedd", "ts": "2026-08-07T02:49:00+02:00", "tipo": "OSError", "donde": "C:\\Users\\Marcos\\Desktop\\galaxy-brain\\src\\galaxybrain\\cli.py:59", "nodo": "", "leida": false}, {"id": "20260802T202953-2ac309", "ts": "2026-08-02T20:29:53+02:00", "tipo": "FileNotFoundError", "donde": "C:\\Users\\Marcos\\Desktop\\live code\\src\\guardia\\eventos.py:150", "nodo": "guardia.eventos", "leida": true}, {"id": "20260802T202940-23e84a", "ts": "2026-08-02T20:29:40+02:00", "tipo": "FileNotFoundError", "donde": "C:\\Users\\Marcos\\Desktop\\live code\\src\\guardia\\eventos.py:150", "nodo": "guardia.eventos", "leida": false}, {"id": "20260801T165959-de419b", "ts": "2026-08-01T16:59:59+02:00", "tipo": "SyntaxError", "donde": "", "nodo": "", "leida": false}, {"id": "20260731T164701-eb9f3f", "ts": "2026-07-31T16:47:01+02:00", "tipo": "AttributeError", "donde": "C:\\Users\\Marcos\\Desktop\\live code\\src\\guardia\\cli.py:137", "nodo": "guardia.cli", "leida": false}, {"id": "20260731T164701-697725", "ts": "2026-07-31T16:47:01+02:00", "tipo": "AttributeError", "donde": "C:\\Users\\Marcos\\Desktop\\live code\\src\\guardia\\cli.py:137", "nodo": "guardia.cli", "leida": false}, {"id": "20260731T161351-3098b6", "ts": "2026-07-31T16:13:51+02:00", "tipo": "SyntaxError", "donde": "", "nodo": "", "leida": false}];
+const REFRESCO = 0;
+const SIN_LEER = 6;
+const N = NODOS.length;
+
+// ================= simulacion =================
+// El mismo algoritmo que force_layout en Python (que queda como gemela de
+// referencia con tests); aqui corre EN VIVO, que es el "Layout optimizing..."
+// de GitNexus — la convergencia animada ES el efecto. Determinista: semillas
+// por hash desde Python, iteraciones fijas, cero Math.random().
+const X = NODOS.map(n=>n.x), Y = NODOS.map(n=>n.y);
+const M = NODOS.map(n=>Math.max(0.5, n.m||1));
+const mediaM = M.reduce((a,b)=>a+b,0)/Math.max(N,1);
+for(let i=0;i<N;i++) M[i] /= mediaM;
+const K = Math.sqrt(LADO*LADO/Math.max(N,1));
+const MAXIT = 300, GRAV = 0.06;
+let temp = LADO/10, iter = 0, corriendo = true;
+let agarrado = null, cola = 0;   // nodo en arrastre + enfriamiento tras soltar
+
+function paso(){
+  const dx = new Float64Array(N), dy = new Float64Array(N);
+  for(let i=0;i<N;i++){
+    for(let j=i+1;j<N;j++){
+      let ax = X[i]-X[j], ay = Y[i]-Y[j];
+      let d2 = ax*ax+ay*ay;
+      if(d2<0.01){ ax=0.01*(i+1); ay=0.01*(j+1); d2=0.0002; }
+      const d = Math.sqrt(d2);
+      const f = K*K/d*Math.sqrt(M[i]*M[j]);
+      const ux=ax/d*f, uy=ay/d*f;
+      dx[i]+=ux; dy[i]+=uy; dx[j]-=ux; dy[j]-=uy;
+    }
+  }
+  for(const par of ARISTAS){
+    const a=par[0], b=par[1];
+    if(a===b) continue;
+    let ax=X[a]-X[b], ay=Y[a]-Y[b];
+    const d=Math.sqrt(ax*ax+ay*ay)||0.01;
+    const f=d*d/K, ux=ax/d*f, uy=ay/d*f;
+    dx[a]-=ux; dy[a]-=uy; dx[b]+=ux; dy[b]+=uy;
+  }
+  const c = LADO/2;
+  for(let i=0;i<N;i++){
+    dx[i]+=(c-X[i])*GRAV; dy[i]+=(c-Y[i])*GRAV;
+    if(i===agarrado) continue;   // al agarrado lo mueve el raton, no la fisica
+    const l=Math.sqrt(dx[i]*dx[i]+dy[i]*dy[i])||1;
+    const p=Math.min(l,Math.max(temp,0));
+    X[i]+=dx[i]/l*p; Y[i]+=dy[i]/l*p;
+  }
+  if(iter<MAXIT){ temp -= (LADO/10)/(MAXIT+1); iter++; }
+}
+
+// ================= camara =================
+const cv = document.getElementById('lienzo'), cx = cv.getContext('2d');
+let esc=1, ox=0, oy=0, camaraLibre=false;
+// La camara sobrevive a una recarga. Sin esto, un refresco automatico te
+// devolveria al encuadre inicial cada vez y explorar seria pelearte con la
+// pagina; con esto la recarga es casi invisible. La clave lleva el titulo para
+// que dos mapas abiertos a la vez no se pisen el encuadre.
+const CAMARA = 'gb-camara:' + document.title;
+try{
+  const guardada = JSON.parse(sessionStorage.getItem(CAMARA) || 'null');
+  if(guardada){ esc=guardada.e; ox=guardada.x; oy=guardada.y; camaraLibre=true; }
+}catch(_){}
+addEventListener('beforeunload', ()=>{
+  try{ if(camaraLibre) sessionStorage.setItem(CAMARA, JSON.stringify({e:esc,x:ox,y:oy})); }catch(_){}
+});
+function encaje(){
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  for(let i=0;i<N;i++){ x0=Math.min(x0,X[i]); y0=Math.min(y0,Y[i]); x1=Math.max(x1,X[i]); y1=Math.max(y1,Y[i]); }
+  const pad=70, w=Math.max(x1-x0,1), h=Math.max(y1-y0,1);
+  const e = Math.min((cv.width-2*pad)/w, (cv.height-60-2*pad)/h);
+  return [e, pad+(cv.width-2*pad-w*e)/2 - x0*e, 60+pad+(cv.height-60-2*pad-h*e)/2 - y0*e];
+}
+function medir(){ cv.width=innerWidth; cv.height=innerHeight;
+  // El refit SOLO si la camara no es del usuario: medir() corre al arrancar
+  // DESPUES de restaurar la camara guardada, y sin esta guarda la pisaba en
+  // cada recarga — el bug existio siempre, pero la re-animacion lo enmascaraba;
+  // al heredar las posiciones (mapa quieto) se volvio visible (uso real, 4-ago).
+  if(!camaraLibre){ const r=encaje(); esc=r[0]; ox=r[1]; oy=r[2]; } }
+
+// ================= atenuado con tinte =================
+// El dimColor de GitNexus: mezclar hacia el color del FONDO conservando el
+// matiz, en vez de bajar alfa y dejarlo gris.
+function mezcla(hex, f){
+  const n=parseInt(hex.slice(1),16), r=(n>>16)&255, g=(n>>8)&255, b=n&255;
+  return 'rgb('+Math.round(10+(r-10)*f)+','+Math.round(13+(g-13)*f)+','+Math.round(20+(b-20)*f)+')';
+}
+NODOS.forEach(n=>{ n.cd = mezcla(n.c, 0.28); });
+
+// ================= vecindario / interaccion =================
+const vecinos = NODOS.map(()=>new Set());
+ARISTAS.forEach(par=>{ vecinos[par[0]].add(par[1]); vecinos[par[1]].add(par[0]); });
+const ficha = document.getElementById('ficha'), buscar = document.getElementById('buscar');
+const estado = document.getElementById('estado');
+let activo=null, fijado=null, filtro='', agenteFoco=null, cercaAg=new Set();
+
+// Vecindario DIRIGIDO. `vecinos` sirve para atenuar el dibujo, pero para leer un
+// nodo hace falta saber en que direccion va cada arista: "a quien llamo" y "quien
+// me llama" son preguntas distintas, y confundirlas es lo que hace inutil a la
+// mayoria de visores de grafos.
+const entran = NODOS.map(()=>[]), salen = NODOS.map(()=>[]);
+for(const par of ARISTAS){
+  const tp = par[2]|0;
+  if(tp===0) continue;               // jerarquia = pertenencia, no flujo
+  salen[par[0]].push([par[1], tp]);
+  entran[par[1]].push([par[0], tp]);
+}
+// Los nombres vienen del disco: un modulo puede llamarse como a alguien se le
+// ocurra. Van escapados antes de tocar innerHTML.
+// OJO con el nombre: `esc` ya existe y es la ESCALA del zoom. Llamar a esto `esc`
+// fue un `const` duplicado en el mismo ambito, o sea un SyntaxError, o sea la
+// pagina entera en blanco. Y 358 tests en verde, porque comprobaban que las
+// cadenas estuvieran, nunca que el script parseara.
+const escapa = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function _lista(pares, clase, tope){
+  const nombres = pares.filter(p => p[1]===clase).map(p => NODOS[p[0]].l);
+  if(!nombres.length) return '';
+  const unicos = [...new Set(nombres)].sort();
+  const cabeza = unicos.slice(0, tope).map(escapa).join(', ');
+  return cabeza + (unicos.length > tope ? ' <span>+' + (unicos.length - tope) + '</span>' : '');
+}
+
+function muestraFicha(i){
+  if(i===null){ ficha.style.display='none'; return; }
+  const n=NODOS[i];
+  // Hechos, no prosa: quien lo llama, a quien llama, donde vive y si esta en un
+  // ciclo. Una explicacion generada exigiria un modelo, y una explicacion
+  // sutilmente falsa aqui llegaria con la misma autoridad que el resto del mapa,
+  // que es determinista de punta a punta.
+  const filas = [];
+  // La descripcion primero: es lo que contesta "que es esto" antes de "con quien
+  // habla". Sale del docstring, o sea de quien escribio el codigo — no generada.
+  if(n.d) filas.push('<i>'+escapa(n.d)+'</i>');
+  else filas.push('<span>sin describir</span>');
+  const meta = [n.k||'', n.g && n.g!==n.id ? 'en ' + escapa(n.g) : ''].filter(Boolean).join(' &middot; ');
+  if(meta) filas.push('<span>'+meta+'</span>');
+  const bloques = [
+    ['llamado por', _lista(entran[i], 1, 4) || _lista(entran[i], 2, 4)],
+    ['llama a',     _lista(salen[i], 1, 4)  || _lista(salen[i], 2, 4)],
+    ['importado por', _lista(entran[i], 3, 4)],
+    ['importa',       _lista(salen[i], 3, 4)],
+  ];
+  for(const [rotulo, contenido] of bloques){
+    if(contenido) filas.push('<span>'+rotulo+':</span> '+contenido);
+  }
+  if((entran[i].length+salen[i].length)===0){
+    // Decirlo es el dato: un simbolo que nadie llama es precisamente algo que se
+    // quiere VER, no una ficha vacia que parezca un fallo de la pagina.
+    filas.push('<span>sin llamadas resueltas ni imports</span>');
+  }
+  if(n.ee){
+    // La cadena del ciclo del error, por firma: hechos encadenados con su
+    // ventana temporal, nunca un veredicto. Los textos vienen ya montados desde
+    // Python (con datos del historico y de git); aqui solo se escapan y pintan.
+    filas.push('<span>ciclo del error:</span> <span style="color:'+n.ec+'">'+escapa(n.ee)+'</span>');
+    for(const l of (n.el||[])) filas.push('&middot; '+escapa(l));
+  }
+  const marcas = [];
+  if(n.ci) marcas.push('<span style="color:'+CICLO_COLOR+'">en un ciclo</span>');
+  if(n.nu) marcas.push('<span style="color:#22d3ee">nuevo</span>');
+  if(n.tc) marcas.push('<span style="color:'+OBRA_COLOR+'">tocado sin commitear</span>');
+  if(marcas.length) filas.push(marcas.join(' &middot; '));
+
+  // Fijado (clic) vs de paso (hover): el borde y la X lo dicen. Sin esa
+  // diferencia, un clic que no llego a fijar es invisible y parece que la pagina
+  // no responde — que es justo lo que pasaba.
+  const esFijado = (fijado!==null && fijado===i);
+  const cierre = esFijado ? '<span class="cerrar" id="cerrarFicha">&#10005;</span>' : '';
+  const pista = esFijado
+    ? '<span class="pista">fijado &middot; clic otra vez (o la X) para soltarlo</span>'
+    : '<span class="pista">clic para fijarlo aqui</span>';
+  ficha.className = esFijado ? 'fijado' : '';
+  ficha.innerHTML = cierre + '<b>'+escapa(n.id)+'</b><br>' + filas.join('<br>') + pista;
+  ficha.style.display='block';
+  const x = document.getElementById('cerrarFicha');
+  if(x) x.addEventListener('click', ()=>{ fijado=null; muestraFicha(activo); recuerda(); });
+}
+
+// ================= dibujo =================
+function pinta(t){
+  cx.clearRect(0,0,cv.width,cv.height);
+  const foco = fijado!==null ? fijado : activo;
+  const cerca = foco!==null ? vecinos[foco] : null;
+  // Respiracion en espacio de DIBUJO, no de fisica: la estructura queda quieta
+  // y el grafo respira. Fase por indice: determinista. Y sobre reloj de PARED
+  // (timeOrigin+t), no el de animacion: ese arranca en 0 en cada recarga, y
+  // con --refresco la fase saltaba de golpe cada N segundos — todos los nodos
+  // brincaban un poco en cada recarga (uso real, 4-ago).
+  const reloj = performance.timeOrigin + t;
+  const WX=new Float64Array(N), WY=new Float64Array(N);
+  const vivo = iter>=MAXIT ? 1 : 0;
+  for(let i=0;i<N;i++){
+    WX[i]=X[i]*esc+ox + vivo*2.2*Math.sin(reloj/1100+i*2.1);
+    WY[i]=Y[i]*esc+oy + vivo*2.2*Math.cos(reloj/1300+i*1.3);
+  }
+  cx.lineWidth=1;
+  // Orden de pintado = orden de lectura. Jerarquia (0) casi invisible debajo,
+  // solo sujeta; imports entre modulos (3) como esqueleto ambar, que es el hecho
+  // exacto; llamadas (1) encima; lo nuevo (2) en cian, que es lo que se mira.
+  for(const capa of [0,3,1,2]) for(const par of ARISTAS){
+    const a=par[0], b=par[1], tp=par[2]|0;
+    if(tp!==capa) continue;
+    const tocada = foco!==null && (a===foco || b===foco);
+    if(agenteFoco!==null && !cercaAg.has(a) && !cercaAg.has(b)){ cx.globalAlpha=0.015; }
+    else if(foco!==null && !tocada){ cx.globalAlpha=0.02; }
+    else { cx.globalAlpha = tocada ? 0.9 : (par[3] ? 0.95 : (capa===0 ? 0.09 : capa===3 ? 0.5 : (capa===2 ? 0.7 : 0.3))); }
+    // El tramo ciclico manda sobre su capa: es el unico hecho que detiene un commit.
+    cx.strokeStyle = par[3] ? CICLO_COLOR : (capa===2 ? '#22d3ee' : capa===3 ? IMPORT_COLOR : NODOS[a].c);
+    cx.lineWidth = par[3] ? 2.4 : (capa===3 ? 1.8 : 1);
+    cx.beginPath(); cx.moveTo(WX[a],WY[a]); cx.lineTo(WX[b],WY[b]); cx.stroke();
+  }
+  // ---- sinapsis: la señal del agente fluyendo por su onda --------------------
+  // Cada arista que sale de un nodo tocado se enciende con el color de SU agente
+  // y un paquete viaja del nodo tocado hacia el vecino: el cambio propagandose
+  // hacia quien le llama. La jerarquia (capa 0) no es comunicacion y no fluye.
+  // Fase distinta por arista (si no, todas palpitarian a la vez); sin modulo de
+  // JS a proposito — este script vive en un template %-formateado de Python.
+  for(const par of ARISTAS){
+    const a=par[0], b=par[1], tp=par[2]|0;
+    if(tp===0) continue;
+    const na=NODOS[a], nb=NODOS[b];
+    const agA=(na.ag&&na.ag.length)?1:0, agB=(nb.ag&&nb.ag.length)?1:0;
+    if(!agA && !agB) continue;
+    const desde = agA ? a : b, hasta = agA ? b : a;
+    const quien = agA ? na.ag : nb.ag;
+    if(agenteFoco!==null && quien.indexOf(agenteFoco)<0) continue;
+    const vigor = vigorOnda(quien);
+    if(vigor<=0) continue;   // actividad de hace >10 min: la onda ya no es "ahora"
+    const c = quien.length>1 ? '#ffffff' : ((AGENTES[quien[0]]||{}).c||OBRA_COLOR);
+    cx.globalAlpha=0.3*vigor; cx.strokeStyle=c; cx.lineWidth=1.2;
+    cx.beginPath(); cx.moveTo(WX[desde],WY[desde]); cx.lineTo(WX[hasta],WY[hasta]); cx.stroke();
+    let fase = reloj/1300 + (a*31+b*17)*0.013;
+    fase = fase - Math.floor(fase);
+    const sx=WX[desde]+(WX[hasta]-WX[desde])*fase, sy=WY[desde]+(WY[hasta]-WY[desde])*fase;
+    cx.globalAlpha=0.9*vigor; cx.fillStyle=c;
+    cx.beginPath(); cx.arc(sx,sy,1.7*Math.min(Math.max(esc,0.6),1.5),0,6.284); cx.fill();
+  }
+  cx.lineWidth=1;
+  cx.globalAlpha=1;
+  const fase=(Math.sin(reloj/180)+1)/2;   // pulso de busqueda: formula de GitNexus
+  for(let i=0;i<N;i++){
+    const n=NODOS[i];
+    const coincide = filtro && n.id.toLowerCase().includes(filtro);
+    const relacionado = foco===null || i===foco || cerca.has(i);
+    let rr = n.r*Math.min(Math.max(esc,0.55),1.6);
+    rr *= 1 + vivo*0.05*Math.sin(reloj/900+i*2.4);      // respiracion
+    let color = n.c;
+    if(filtro && !coincide){ color=n.cd; }
+    else if(foco!==null && !relacionado){ color=n.cd; }
+    if(agenteFoco!==null && !cercaAg.has(i)){ color=n.cd; }
+    if(coincide){ rr *= 1.2+fase*0.5; if(fase>0.5) color='#06b6d4'; }
+    if(i===foco){ rr *= 1+0.12*Math.sin(reloj/250); }
+    if(n.tc){
+      // Capa de cambio: halo RELLENO bajo el nodo (path propio, antes del
+      // circulo). Todos los demas estados son strokes sobre el borde; esto se
+      // distingue por forma, no solo por color, y no pisa rojo/cian ni los
+      // anillos discontinuos del ciclo del error.
+      // QUIETO y suave: tocado-sin-commitear es un estado del ARBOL, o sea
+      // contexto, no la noticia. Lo que pulsa es el agente, mas abajo.
+      cx.globalAlpha=0.28; cx.fillStyle=OBRA_COLOR;
+      cx.beginPath(); cx.arc(WX[i],WY[i],rr+6,0,6.284); cx.fill();
+      cx.globalAlpha=1;
+    }
+    if(n.ag && n.ag.length){
+      // ESTO si es un agente trabajando aqui AHORA, y lleva SU color, no el de
+      // la capa de cambio. Pulsa porque el movimiento es lo unico que el ojo
+      // coge sin buscar entre 900 nodos. Dos o mas agentes en el mismo nodo:
+      // aro blanco y grueso, que es el caso que hay que mirar.
+      const ca = (AGENTES[n.ag[0]]||{}).c || OBRA_COLOR;
+      const propio = agenteFoco===null || n.ag.indexOf(agenteFoco)>=0;
+      const pu = 0.5 + 0.5*Math.sin(reloj/380 + i*0.7);
+      cx.globalAlpha=(0.22+0.5*pu)*(propio?1:0.12); cx.fillStyle=ca;
+      cx.beginPath(); cx.arc(WX[i],WY[i],rr+8+5*pu,0,6.284); cx.fill();
+      cx.globalAlpha=propio?1:0.15; cx.strokeStyle = n.ag.length>1 ? '#ffffff' : ca;
+      cx.lineWidth = n.ag.length>1 ? 3 : 2.4;
+      cx.beginPath(); cx.arc(WX[i],WY[i],rr+4,0,6.284); cx.stroke();
+      cx.globalAlpha=1; cx.lineWidth=1;
+    }
+    cx.beginPath(); cx.arc(WX[i],WY[i],rr,0,6.284);
+    cx.fillStyle=color; cx.fill();
+    if(n.nu){ cx.strokeStyle='#22d3ee'; cx.lineWidth=1.2; cx.stroke(); cx.lineWidth=1; }
+    if(n.ci){ cx.strokeStyle=CICLO_COLOR; cx.lineWidth=2; cx.stroke(); cx.lineWidth=1; }
+    if(i===foco || coincide){
+      cx.strokeStyle='#fff'; cx.lineWidth=1.5; cx.stroke(); cx.lineWidth=1;
+      cx.fillStyle='#e8edf3'; cx.font='11px ui-monospace,Consolas,monospace';
+      cx.fillText(n.l, WX[i]+rr+4, WY[i]+3);
+    }
+    if(n.ec){
+      // Anillo discontinuo APARTE del borde del nodo (path nuevo, por eso va al
+      // final: los strokes de arriba reusan el path del circulo). El estado del
+      // ciclo del error no compite con el rojo del ciclo de imports ni con el
+      // cian de lo nuevo — informa, no bloquea.
+      cx.strokeStyle=n.ec; cx.setLineDash([3,2]); cx.lineWidth=1.6;
+      cx.beginPath(); cx.arc(WX[i],WY[i],rr+3,0,6.284); cx.stroke();
+      cx.setLineDash([]); cx.lineWidth=1;
+    }
+  }
+  // La consola del agente, ENCIMA del nodo que esta tocando. Va en su propia
+  // pasada, despues de todos los nodos, para que ninguna quede tapada.
+  //
+  // Lo que dice son HECHOS derivados del disco: que toca, con cuantos nodos
+  // habla, hace cuanto. Su narrativa ("estoy refactorizando el store") solo la
+  // tiene el agente, y pedirsela seria volver al registro declarado que se
+  // descarto: en cuanto uno se olvida de declarar, el panel miente con cara de
+  // hecho.
+  if(esc>0.45) for(let i=0;i<N;i++){
+    const n=NODOS[i];
+    if(!n.ag || !n.ag.length) continue;
+    if(agenteFoco!==null && n.ag.indexOf(agenteFoco)<0) continue;
+    const varios = n.ag.length>1;
+    const a = AGENTES[n.ag[0]] || {};
+    const l1 = varios ? (n.ag.length+' agentes a la vez') : n.ag[0];
+    let l2 = (a.nodos||0)+' nodo(s) - habla con '+(a.vecinos||0);
+    if(a.hace!=null) l2 += ' - hace '+(a.hace<90 ? a.hace+'s' : Math.round(a.hace/60)+'m');
+    const l3 = varios ? n.ag.join(' + ')
+                      : ((a.fuera ? a.fuera+' fichero(s) aun sin sitio en el mapa' : '')
+                         || (a.misma ? '' : 'OJO: parte de otra base ('+a.base+')'));
+    const lineas = l3 ? [l1,l2,l3] : [l1,l2];
+    cx.font='10px ui-monospace,Consolas,monospace';
+    let an=0; for(const t of lineas) an=Math.max(an, cx.measureText(t).width);
+    const pw=an+14, ph=lineas.length*13+9;
+    const px=WX[i]-pw/2, py=WY[i]-n.r*Math.min(Math.max(esc,0.55),1.6)-ph-11;
+    // Tallo hasta el nodo: sin el, la caja flota y no se sabe de quien habla.
+    const cc = varios ? '#ffffff' : ((AGENTES[n.ag[0]]||{}).c || OBRA_COLOR);
+    cx.strokeStyle = cc; cx.globalAlpha=0.8;
+    cx.beginPath(); cx.moveTo(WX[i],py+ph); cx.lineTo(WX[i],WY[i]); cx.stroke();
+    cx.globalAlpha=0.94; cx.fillStyle='#111722';
+    cx.beginPath(); cx.rect(px,py,pw,ph); cx.fill();
+    cx.globalAlpha=1; cx.lineWidth = varios ? 2.2 : 1.4;
+    cx.strokeStyle = cc; cx.stroke(); cx.lineWidth=1;
+    cx.fillStyle = cc;
+    cx.fillText(lineas[0], px+7, py+14);
+    cx.fillStyle='#7d8b9c';
+    for(let k=1;k<lineas.length;k++) cx.fillText(lineas[k], px+7, py+14+k*13);
+  }
+}
+
+// ============ posiciones heredadas ============
+// Las posiciones sobreviven a la recarga, como la camara. Sin esto, cada
+// auto-refresco reiniciaba la fisica desde la siembra y el mapa BAILABA cada
+// N segundos (salio en prueba de uso, 4-ago). Al volver, cada nodo hereda su
+// sitio ya convergido y pinta quieto; con pocos nodos nuevos se deja un
+// asentamiento corto y frio para colocarlos sin sacudir al resto; con muchos
+// (>20 por ciento) la forma cambio de verdad y la convergencia se re-anima.
+const POSICIONES = 'gb-pos:' + document.title;
+try{
+  const previas = JSON.parse(sessionStorage.getItem(POSICIONES) || 'null');
+  if(previas && MAXIT && N>1){
+    let usadas = 0;
+    for(let i=0;i<N;i++){ const p = previas[NODOS[i].id]; if(p){ X[i]=p[0]; Y[i]=p[1]; usadas++; } }
+    if(usadas === N) iter = MAXIT;
+    else if(usadas > N*0.8) iter = Math.max(0, MAXIT-40);
+    if(iter){
+      temp = Math.max(0, (LADO/10)*(1 - iter/(MAXIT+1)));
+      // El encuadre no se toca aqui: medir() (que corre despues, ya con el
+      // canvas a tamano real) encaja si la camara no es del usuario.
+      if(iter>=MAXIT) estado.style.opacity=0;
+    }
+  }
+}catch(_){}
+addEventListener('beforeunload', ()=>{
+  try{
+    const sitio = {};
+    for(let i=0;i<N;i++) sitio[NODOS[i].id] = [Math.round(X[i]*10)/10, Math.round(Y[i]*10)/10];
+    sessionStorage.setItem(POSICIONES, JSON.stringify(sitio));
+  }catch(_){}
+});
+
+// ================= bucle =================
+function bucle(t){
+  if(N>1){
+    if(corriendo && iter<MAXIT){
+      for(let s=0;s<3 && iter<MAXIT;s++) paso();
+      if(!camaraLibre){ const r=encaje(); esc+=(r[0]-esc)*0.08; ox+=(r[1]-ox)*0.08; oy+=(r[2]-oy)*0.08; }
+      if(iter>=MAXIT) estado.style.opacity=0;
+    } else if(agarrado!==null || cola>0){
+      // Fisica local al arrastrar: los vecinos responden; al soltar, se enfria.
+      temp=Math.max(temp,10); paso();
+      if(agarrado===null) cola--;
+    }
+  } else { estado.style.opacity=0; }
+  pinta(t);
+  requestAnimationFrame(bucle);
+}
+
+// ================= raton =================
+function nodoEn(mx,my){
+  let mejor=null, dmin=16;
+  for(let i=0;i<N;i++){
+    const d=Math.hypot(X[i]*esc+ox-mx, Y[i]*esc+oy-my);
+    if(d<dmin){ dmin=d; mejor=i; }
+  }
+  return mejor;
+}
+let panning=false, lx=0, ly=0, movido=false;
+cv.addEventListener('mousedown', e=>{
+  movido=false; lx=e.clientX; ly=e.clientY;
+  const i=nodoEn(e.clientX,e.clientY);
+  if(i!==null){ agarrado=i; camaraLibre=true; }
+  else { panning=true; cv.classList.add('arrastrando'); }
+});
+addEventListener('mousemove', e=>{
+  // 6 px, no 3: con 3 el temblor normal de la mano al hacer clic contaba como
+  // arrastre y el nodo no llegaba a fijarse nunca.
+  if(Math.hypot(e.clientX-lx,e.clientY-ly)>6) movido=true;
+  if(agarrado!==null){
+    X[agarrado]=(e.clientX-ox)/esc; Y[agarrado]=(e.clientY-oy)/esc;
+    return;
+  }
+  if(panning){ ox+=e.clientX-lx; oy+=e.clientY-ly; lx=e.clientX; ly=e.clientY; camaraLibre=true; return; }
+  const i=nodoEn(e.clientX,e.clientY);
+  if(i!==activo){ activo=i; if(fijado===null) muestraFicha(i); }
+});
+addEventListener('mouseup', e=>{
+  if(agarrado!==null){
+    if(!movido){ fijado = (fijado===agarrado) ? null : agarrado; muestraFicha(fijado); recuerda(); }
+    else cola=90;
+    agarrado=null;
+  } else if(panning && !movido){ fijado=null; muestraFicha(null); recuerda(); }
+  panning=false; cv.classList.remove('arrastrando');
+});
+cv.addEventListener('wheel', e=>{
+  e.preventDefault(); camaraLibre=true;
+  const k = e.deltaY>0 ? 0.9 : 1.1;
+  ox = e.clientX-(e.clientX-ox)*k; oy = e.clientY-(e.clientY-oy)*k; esc*=k; recuerda();
+}, {passive:false});
+buscar.addEventListener('input', e=>{ filtro=e.target.value.trim().toLowerCase(); });
+document.getElementById('btnPausa').addEventListener('click', ev=>{
+  corriendo=!corriendo; ev.target.innerHTML = corriendo ? '&#9208;' : '&#9654;';
+});
+document.getElementById('btnEncaja').addEventListener('click', ()=>{
+  const r=encaje(); esc=r[0]; ox=r[1]; oy=r[2];
+});
+addEventListener('resize', ()=>{ if(!camaraLibre) medir(); else { cv.width=innerWidth; cv.height=innerHeight; } });
+// La pagina se recarga sola cada pocos segundos, y una recarga destruye TODO el
+// estado: el nodo fijado, el zoom y el encuadre. Sin esto, fijar una ficha es
+// imposible en un mapa vivo — se borraba antes de poder leerla.
+//
+// El nodo se guarda por ID, nunca por indice: entre dos regeneraciones el grafo
+// cambia y el indice 412 pasa a ser otro simbolo. Guardar el indice habria
+// devuelto la ficha equivocada con toda la autoridad del resto del mapa.
+const MEM='gb-mapa-estado';
+function recuerda(){
+  try{
+    sessionStorage.setItem(MEM, JSON.stringify({
+      f: fijado===null ? null : NODOS[fijado].id,
+      e: esc, x: ox, y: oy, lib: camaraLibre ? 1 : 0, af: agenteFoco
+    }));
+  }catch(_){}
+}
+function recupera(){
+  let s; try{ s=JSON.parse(sessionStorage.getItem(MEM)||'null'); }catch(_){ return; }
+  if(!s) return;
+  if(s.lib && isFinite(s.e) && isFinite(s.x) && isFinite(s.y)){
+    esc=s.e; ox=s.x; oy=s.y; camaraLibre=true;
+  }
+  if(s.f){
+    const i = NODOS.findIndex(n => n.id === s.f);
+    // Si el simbolo ya no existe, se suelta y se calla: mejor sin ficha que una
+    // ficha de algo que se borro.
+    if(i>=0){ fijado=i; muestraFicha(i); }
+  }
+  // El foco por agente tambien sobrevive al refresco — y si el agente ya no
+  // esta (commiteo, o su worktree se fue), se suelta sin decir nada.
+  if(s.af && AGENTES[s.af]){ agenteFoco=s.af; calculaCercaAg(); }
+}
+addEventListener('beforeunload', recuerda);
+
+// ---- panel de agentes -------------------------------------------------------
+// El roster de la sala de control. La onda de un agente son sus nodos mas un
+// salto por las aristas: lo mismo que su consola dice que "habla", pero visible
+// de golpe al hacer clic. Todo derivado; el panel no existe sin agentes.
+function calculaCercaAg(){
+  cercaAg=new Set();
+  if(agenteFoco===null) return;
+  NODOS.forEach((n,i)=>{ if(n.ag && n.ag.indexOf(agenteFoco)>=0) cercaAg.add(i); });
+  const base=new Set(cercaAg);
+  for(const par of ARISTAS){
+    if(base.has(par[0])) cercaAg.add(par[1]);
+    if(base.has(par[1])) cercaAg.add(par[0]);
+  }
+}
+// El panel de agentes se retiro (6-ago): su tarjeta se FUSIONO con la terminal
+// y vive anclada al nodo del agente — una sola pieza por agente, donde opera.
+function fmtHace(s){ return s==null ? '' : (s<90 ? Math.round(s)+'s' : Math.round(s/60)+'m'); }
+// La edad REAL de la actividad: la que tenia al generarse el mapa mas lo que ha
+// pasado desde la generacion (GEN_TS). El `hace` del payload esta congelado en
+// la foto; sin esto la tarjeta miente mas cuanto mas vieja es la pestana.
+function haceAhora(a){
+  if(!a || a.hace==null) return null;
+  const extra = GEN_TS!=null ? Math.max(0, Date.now()/1000 - GEN_TS) : performance.now()/1000;
+  return a.hace + extra;
+}
+// La onda del agente se apaga con la edad: fluye entera 3 min, se atenua y a los
+// 10 esta muerta. Una foto estatica que anima flujo eternamente lee como "esta
+// pasando ahora", cuando el hecho es "estaba pasando cuando se genero" — la
+// misma disciplina que el pie: decir de cuando es el dato.
+const ONDA_FRESCA=180, ONDA_MUERTA=600;
+function vigorOnda(quien){
+  let hace=null;
+  for(const q of quien){ const h=haceAhora(AGENTES[q]); if(h!=null && (hace==null||h<hace)) hace=h; }
+  if(hace==null) return 1;  // sin mtime no se inventa una muerte: se dibuja
+  if(hace<=ONDA_FRESCA) return 1;
+  return Math.max(0, 1-(hace-ONDA_FRESCA)/(ONDA_MUERTA-ONDA_FRESCA));
+}
+
+// Cualquier panel con cabecera se arrastra por ella y recuerda donde lo dejaste
+// (por pestaña): dos consolas fijas en esquinas acaban superpuestas en cuanto
+// la ventana encoge — la posicion es de quien mira, como la talla.
+function hazArrastrable(el, clave){
+  let pos=null;
+  try{ pos=JSON.parse(sessionStorage.getItem(clave)||'null'); }catch(_){}
+  function aplica(){
+    if(!pos) return;
+    el.style.left=pos[0]+'px'; el.style.top=pos[1]+'px';
+    el.style.right='auto'; el.style.bottom='auto';
+  }
+  aplica();
+  let arr=null;
+  el.addEventListener('mousedown', ev=>{
+    const cab=ev.target && ev.target.closest ? ev.target.closest('.cab') : null;
+    if(!cab || (ev.target.dataset && ev.target.dataset.acc)) return;
+    const r=el.getBoundingClientRect();
+    arr={dx:ev.clientX-r.left, dy:ev.clientY-r.top};
+    window._arrastrandoTerm=true;  // la recarga tampoco interrumpe este arrastre
+    ev.preventDefault();
+  });
+  addEventListener('mousemove', ev=>{
+    if(!arr) return;
+    pos=[Math.max(0,ev.clientX-arr.dx), Math.max(0,ev.clientY-arr.dy)];
+    aplica();
+  });
+  addEventListener('mouseup', ()=>{
+    if(!arr) return;
+    arr=null;
+    window._arrastrandoTerm=false;
+    try{ sessionStorage.setItem(clave, JSON.stringify(pos)); }catch(_){}
+  });
+}
+
+// ---- consola de actividad ---------------------------------------------------
+// "Lo que van haciendo" en lo que se puede saber sin que nadie lo declare: cada
+// recarga compara la instantanea actual (AGENTES + que nodo toca quien) con la
+// anterior, guardada en el navegador, y LOS EVENTOS SON LA DIFERENCIA. La
+// narrativa del agente ("estoy refactorizando el store") solo la tiene el; esto
+// es el registro de sus huellas, con la cadencia de la regeneracion.
+function eventosEntre(prev, ahora){
+  const ev=[];
+  const antes=prev||{ag:{},nodos:{}};
+  for(const nombre of Object.keys(ahora.ag)){
+    const a=ahora.ag[nombre], pa=antes.ag[nombre];
+    if(!pa){
+      ev.push({a:nombre,t:'aparece',d:(a.nodos||0)+' nodo(s) en su onda'});
+      // Lo que ya lleva escrito al aparecer tambien es un hecho: sin esto, un
+      // agente que arranca con trabajo hecho parece que no ha hecho nada.
+      for(const h of (a.cambios||[]).slice(0,4)) ev.push({a:nombre,t:'escribe',d:h});
+      if((a.cambios||[]).length>4) ev.push({a:nombre,t:'escribe',d:'+'+((a.cambios||[]).length-4)+' hecho(s) mas'});
+      continue;
+    }
+    // "escribe" con sustancia: los hechos de firma NUEVOS desde la instantanea
+    // anterior — que escribio exactamente, no "ultima actividad hace 2s". El
+    // texto generico queda solo de reserva, para cambios sin firma (cuerpos).
+    const antesC={}; for(const h of (pa.cambios||[])) antesC[h]=1;
+    const nuevos=(a.cambios||[]).filter(h=>!antesC[h]);
+    for(const h of nuevos.slice(0,4)) ev.push({a:nombre,t:'escribe',d:h});
+    if(nuevos.length>4) ev.push({a:nombre,t:'escribe',d:'+'+(nuevos.length-4)+' hecho(s) mas'});
+    if(!nuevos.length && a.hace!=null && pa.hace!=null && a.hace<pa.hace)
+      ev.push({a:nombre,t:'escribe',d:'sin cambio de firma (cuerpos o docs) · hace '+a.hace+'s'});
+    if((a.fuera||0)>(pa.fuera||0))
+      ev.push({a:nombre,t:'crea',d:(a.fuera-(pa.fuera||0))+' fichero(s) aun sin sitio en el mapa'});
+  }
+  for(const nombre of Object.keys(antes.ag))
+    if(!ahora.ag[nombre]) ev.push({a:nombre,t:'se va',d:'sin cambios pendientes (commit o descarte)'});
+  const na=ahora.nodos||{}, np=antes.nodos||{};
+  for(const q of Object.keys(na)){
+    const ags=na[q], pags=np[q]||[];
+    for(const nombre of ags) if(pags.indexOf(nombre)<0) ev.push({a:nombre,t:'toca',d:q});
+    if(ags.length>1 && pags.length<2) ev.push({a:ags.join(' + '),t:'CRUCE',d:q});
+  }
+  for(const q of Object.keys(np)) for(const nombre of np[q])
+    if((na[q]||[]).indexOf(nombre)<0 && ahora.ag[nombre]) ev.push({a:nombre,t:'suelta',d:q});
+  return ev;
+}
+const consolaEl=document.getElementById('consola');
+const CMEM='gb-mapa-consola';
+(function(){
+  const nodosAg={};
+  NODOS.forEach(n=>{ if(n.ag && n.ag.length) nodosAg[n.id]=n.ag; });
+  const ahora={ag:AGENTES, nodos:nodosAg};
+  let est=null; try{ est=JSON.parse(sessionStorage.getItem(CMEM)||'null'); }catch(_){}
+  const log=(est && est.log)||[];
+  const hora=new Date().toLocaleTimeString();
+  for(const e of eventosEntre(est && est.snap, ahora))
+    log.push({h:hora, c: e.t==='CRUCE' ? '#ffffff' : ((AGENTES[e.a]||{}).c||'#94a3b8'),
+              a:e.a, t:e.t, d:e.d});
+  // Las capturas NO entran a este feed: se probo y una tirada las entierra
+  // bajo los toca/escribe. Viven en su propia consola de errores (#errores).
+  while(log.length>200) log.shift();
+  let abierto = est ? est.abierto!==0 : true;
+  // Tres tallas, no un resize libre: anclada abajo-izquierda, el asa nativa de
+  // CSS crece hacia abajo-derecha y se sale de la pantalla. La talla se
+  // recuerda entre recargas, como todo lo demas.
+  const TAM=[[300,'22vh'],[410,'38vh'],[580,'62vh']];
+  let tam = (est && typeof est.tam==='number') ? est.tam : 1;
+  function guarda(){
+    try{ sessionStorage.setItem(CMEM, JSON.stringify(
+      {snap:ahora, log:log, abierto:abierto?1:0, tam:tam})); }catch(_){}
+  }
+  guarda();
+  function pintaConsola(){
+    // ABIERTO manda: con el log vacio se dice "0 eventos" en vez de esconder
+    // el panel — un boton que conmuta algo invisible parece un boton roto
+    // (paso: pestaña nueva, sessionStorage virgen, ≡ "no funcionaba").
+    if(!abierto){ consolaEl.style.display='none'; return; }
+    // La consola DE un agente: el foco del panel filtra tambien aqui (un CRUCE
+    // en el que participa cuenta como suyo). Sin foco, la de todos.
+    const filas = agenteFoco
+      ? log.filter(e=>e.a===agenteFoco || e.a.split(' + ').indexOf(agenteFoco)>=0)
+      : log;
+    consolaEl.style.width=TAM[tam][0]+'px';
+    consolaEl.style.maxHeight=TAM[tam][1];
+    consolaEl.innerHTML =
+      '<div class="cab"><span>'+(agenteFoco
+        ? 'consola de '+escapa(agenteFoco)
+        : 'actividad (hechos derivados)')+'</span>'+
+      '<span><b data-acc="menos" title="mas pequena">&#8722;</b>'+
+      '<b data-acc="mas" title="mas grande">+</b>'+
+      '<b data-acc="cerrar" title="ocultar">&#10005;</b></span></div>'+
+      (filas.length ? filas.map(e=>
+      '<div class="fila"><span class="hora">'+e.h+'</span>'+
+      '<span class="quien" style="color:'+e.c+'">'+escapa(e.a)+'</span>'+
+      '<span class="que">'+escapa(e.t)+'</span><span class="detalle">'+escapa(e.d)+'</span></div>'
+      ).join('')
+      : '<div class="fila"><span class="detalle">'+(agenteFoco
+          ? '(sin eventos registrados de '+escapa(agenteFoco)+')'
+          : '(0 eventos: se derivan comparando instantaneas entre recargas — '+
+            'apareceran en cuanto un agente toque el arbol)')+'</span></div>');
+    consolaEl.style.display='block';
+    consolaEl.scrollTop=consolaEl.scrollHeight;
+  }
+  window._pintaConsola=pintaConsola;
+  // Delegacion: pintaConsola reconstruye el innerHTML, asi que los botones no
+  // pueden llevar listeners propios — se escucha en el contenedor, que vive.
+  consolaEl.addEventListener('click', ev=>{
+    const acc = ev.target && ev.target.dataset ? ev.target.dataset.acc : null;
+    if(!acc) return;
+    if(acc==='cerrar') abierto=false;
+    else if(acc==='menos') tam=Math.max(0, tam-1);
+    else if(acc==='mas') tam=Math.min(TAM.length-1, tam+1);
+    guarda(); pintaConsola();
+  });
+  document.getElementById('btnConsola').addEventListener('click', ()=>{
+    abierto=!abierto; guarda(); pintaConsola();
+  });
+  hazArrastrable(consolaEl, 'gb-mapa-consola-pos');
+  pintaConsola();
+
+  // ---- terminales de agente: su consola cmd, anclada encima de sus nodos ----
+  // El contenido es el stdout REAL del agente (AGENTES[n].consola, teeado por
+  // el orquestador y leido del disco), no los hechos de firma: esos ya viven
+  // en la consola de abajo. Cursor parpadeando mientras el agente esta vivo.
+  const termCont=document.getElementById('terminales');
+  const IDXN={}; NODOS.forEach((n,i)=>{ IDXN[n.id]=i; });
+  // La talla la elige quien mira: tres discretas con -/+ (mismo motivo que la
+  // consola: resize libre no vale con el ancla en el nodo), recordada entre
+  // recargas. [ancho px, lineas visibles]
+  const TAMT=[[180,2],[240,3],[340,6]];
+  const TMEM='gb-mapa-terminal';
+  let tamT=1;
+  try{ const g=sessionStorage.getItem(TMEM);
+       if(g!=null) tamT=Math.max(0,Math.min(TAMT.length-1,+g||0)); }catch(_){}
+  const TERMS=[]; const anclados={}; let sueltos=0;
+  // La lluvia: la pagina recuerda la ultima linea que YA se vio (por agente) y
+  // las posteriores se revelan de una en una — la conversacion cae, no salta a
+  // golpes de recarga. La marca de lo visto sobrevive al refresco.
+  const VMEM='gb-mapa-terminal-visto';
+  let vistos={};
+  try{ vistos=JSON.parse(sessionStorage.getItem(VMEM)||'{}')||{}; }catch(_){}
+  function renderTerm(t, cayendo){
+    const a=AGENTES[t.nom]; if(!a) return;
+    const total=(a.consola||[]).length;
+    // vivo/hace con la edad REAL, no la congelada en la foto: un cursor
+    // parpadeando dos horas despues es la misma mentira que la onda eterna.
+    const hAhora = haceAhora(a);
+    const vivo = (hAhora!=null && hAhora<120) || t.reveladas<total;
+    t.el.style.width=TAMT[tamT][0]+'px';
+    t.el.className='term'+(agenteFoco===t.nom?' foco':'');
+    // La tarjeta y la terminal son UNA pieza: cabecera con los datos del
+    // agente (lo que era el panel) y debajo su consola, si habla.
+    let h='<div class="tcab" style="color:'+a.c+'">&#9679; '+escapa(t.nom)+
+      '<span class="tdat">'+(a.nodos||0)+'n'+(hAhora!=null?' &middot; '+fmtHace(hAhora):'')+'</span>'+
+      '<span class="tbot"><b data-acc="tmenos" title="mas pequena">&#8722;</b>'+
+      '<b data-acc="tmas" title="mas grande">+</b></span></div>';
+    if(!a.misma) h+='<div class="tav">&#9888; parte de otra base ('+escapa(a.base)+')</div>';
+    else if(a.fuera) h+='<div class="tav" style="color:var(--suave)">'+a.fuera+' fichero(s) sin sitio en el mapa</div>';
+    let visibles=(a.consola||[]).slice(0,t.reveladas).slice(-TAMT[tamT][1]);
+    if(!(a.consola||[]).length){
+      // Sin stdout tee-ado (p. ej. el arbol principal, que no tiene orquestador):
+      // la tarjeta enseña sus hechos de firma; si tampoco hay (el mapa canonico
+      // se deriva de ese mismo arbol), que nodos toca. Nunca muda.
+      visibles=(a.cambios||[]).slice(-TAMT[tamT][1]);
+      if(!visibles.length){
+        const mios=NODOS.filter(n=>(n.ag||[]).indexOf(t.nom)>=0).map(n=>n.id);
+        visibles=mios.length
+          ? ['toca: '+mios.slice(0,3).join(', ')+(mios.length>3?' +'+(mios.length-3):'')]
+          : ['(sin consola tee-ada ni cambios de firma)'];
+      }
+    }
+    h+=visibles.map((l,i)=>
+      '<div class="tl'+(cayendo && i===visibles.length-1?' nueva':'')+'">'+escapa(l)+'</div>').join('')+
+      (vivo?'<span class="cur" style="color:'+a.c+'">&#9612;</span>':'');
+    t.el.innerHTML=h;
+  }
+  // El hilo tarjeta-nodo: al arrastrarla lejos se perdia DE QUE nodo colgaba.
+  // Un div de 1px rotado (nada de SVG: su namespace es una URL literal y el
+  // mapa se prueba autocontenido con un simple `http no aparece`).
+  const hilos=document.createElement('div');
+  hilos.id='hilos';
+  document.body.appendChild(hilos);
+  for(const nom of Object.keys(AGENTES).sort()){
+    const a=AGENTES[nom];
+    let idx=null;
+    for(const n of NODOS){ if((n.ag||[]).indexOf(nom)>=0){ idx=IDXN[n.id]; break; } }
+    const el=document.createElement('div');
+    el.className='term'; el.dataset.ag=nom;
+    termCont.appendChild(el);
+    const orden = idx==null ? 0 : (anclados[idx]=(anclados[idx]||0)+1)-1;
+    const total=(a.consola||[]).length;
+    let desde=total;  // sin marca previa: todo visto, nada que llover
+    const marca=vistos[nom];
+    if(marca){
+      desde=0;
+      for(let i=total-1;i>=0;i--){ if(a.consola[i]===marca){ desde=i+1; break; } }
+      // La marca puede haberse salido de la ventana de 40 lineas (agente muy
+      // hablador): llover 40 desde cero tarda 28 s y la tarjeta se ve VACIA
+      // mientras tanto. Rastro perdido: se enseña casi todo y llueve el final.
+      if(desde===0) desde=Math.max(0, total-6);
+    }
+    if(desde>0) vistos[nom]=a.consola[desde-1];
+    let hilo=null;
+    if(idx!=null){
+      hilo=document.createElement('div');
+      hilo.className='hilo';
+      hilo.style.borderTopColor=a.c;
+      hilos.appendChild(hilo);
+    }
+    const t={el:el, nom:nom, idx:idx, orden:orden, hilo:hilo,
+             reveladas:desde, suelto: idx==null ? sueltos++ : -1};
+    renderTerm(t);
+    TERMS.push(t);
+  }
+  try{ sessionStorage.setItem(VMEM, JSON.stringify(vistos)); }catch(_){}
+  let tickHace=0;
+  setInterval(()=>{
+    let cambio=false;
+    for(const t of TERMS){
+      const cons=(AGENTES[t.nom]||{}).consola||[];
+      if(t.reveladas<cons.length){
+        // Sin deuda eterna: si la lluvia va mas de 12 lineas por detras del
+        // agente, salta al presente y llueven solo las ultimas.
+        if(cons.length-t.reveladas>12) t.reveladas=cons.length-6;
+        t.reveladas++;
+        vistos[t.nom]=cons[t.reveladas-1];
+        renderTerm(t, true);
+        cambio=true;
+      }
+    }
+    if(cambio){ try{ sessionStorage.setItem(VMEM, JSON.stringify(vistos)); }catch(_){} }
+    // Cada ~7 s se re-pinta la cabecera de las tarjetas para que el "hace" y el
+    // cursor de vivo envejezcan con la edad real — salvo con texto seleccionado:
+    // re-pintar debajo de un Ctrl+C a medias es el mismo robo que la recarga.
+    tickHace=(tickHace+1)%10;
+    if(tickHace===0 && !cambio){
+      const sel=window.getSelection?window.getSelection():null;
+      if(!(sel&&!sel.isCollapsed)) for(const t of TERMS) renderTerm(t);
+    }
+  }, 700);
+  // Desplazables: el arrastre guarda un DESVIO por agente (recordado entre
+  // recargas), asi la terminal sigue a su nodo con la camara pero desde donde
+  // tu la dejaste — la cura de la superposicion sin soltar el ancla.
+  const OMEM='gb-mapa-terminal-pos';
+  let desvios={};
+  try{ desvios=JSON.parse(sessionStorage.getItem(OMEM)||'{}')||{}; }catch(_){}
+  let arrastreT=null, seMovioT=false;
+  termCont.addEventListener('mousedown', ev=>{
+    if(ev.target && ev.target.dataset && ev.target.dataset.acc) return; // -/+
+    let el=ev.target;
+    while(el && el!==termCont && !(el.dataset && el.dataset.ag)) el=el.parentNode;
+    if(!el || el===termCont || !el.dataset.ag) return;
+    const d=desvios[el.dataset.ag]||[0,0];
+    arrastreT={nom:el.dataset.ag, x:ev.clientX, y:ev.clientY, dx:d[0], dy:d[1]};
+    seMovioT=false;
+    window._arrastrandoTerm=true;  // la recarga automatica se aplaza mientras
+    ev.preventDefault();
+  });
+  addEventListener('mousemove', ev=>{
+    if(!arrastreT) return;
+    const nx=ev.clientX-arrastreT.x, ny=ev.clientY-arrastreT.y;
+    if(Math.abs(nx)+Math.abs(ny)>3) seMovioT=true;
+    desvios[arrastreT.nom]=[arrastreT.dx+nx, arrastreT.dy+ny];
+  });
+  addEventListener('mouseup', ()=>{
+    window._arrastrandoTerm=false;
+    if(!arrastreT) return;
+    arrastreT=null;
+    try{ sessionStorage.setItem(OMEM, JSON.stringify(desvios)); }catch(_){}
+  });
+  termCont.addEventListener('click', ev=>{
+    const acc = ev.target && ev.target.dataset ? ev.target.dataset.acc : null;
+    if(acc==='tmenos' || acc==='tmas'){
+      tamT=Math.max(0, Math.min(TAMT.length-1, tamT+(acc==='tmas'?1:-1)));
+      try{ sessionStorage.setItem(TMEM, String(tamT)); }catch(_){}
+      for(const t of TERMS) renderTerm(t);
+      return;
+    }
+    if(seMovioT){ seMovioT=false; return; }  // arrastrar no es enfocar
+    let el=ev.target;
+    while(el && el!==termCont && !(el.dataset && el.dataset.ag)) el=el.parentNode;
+    const nom=(el && el.dataset) ? el.dataset.ag : null;
+    if(!nom) return;
+    agenteFoco=(agenteFoco===nom)?null:nom;
+    calculaCercaAg(); recuerda(); pintaConsola();
+    for(const t of TERMS) renderTerm(t);  // el foco se ve en la tarjeta
+  });
+  if(TERMS.length){
+    (function animaTerms(){
+      for(const t of TERMS){
+        const d=desvios[t.nom]||[0,0];
+        if(t.idx==null){
+          // Agente sin nodo en el mapa todavia: su terminal se apila a la
+          // izquierda, bajo la cabecera REAL — la altura fija de antes se
+          // solapaba con la barra de buscar cuando la leyenda crecia.
+          const hh=((document.querySelector('header')||{}).offsetHeight||84)+10;
+          t.el.style.transform='none';
+          t.el.style.left=(12+d[0])+'px';
+          t.el.style.top=(hh+(t.el.offsetHeight+8)*t.suelto+d[1])+'px';
+          continue;
+        }
+        const nx=X[t.idx]*esc+ox, ny=Y[t.idx]*esc+oy;
+        const cx=nx+d[0], cy=ny-14-(t.el.offsetHeight+6)*t.orden+d[1];
+        t.el.style.left=cx+'px';
+        t.el.style.top=cy+'px';
+        if(t.hilo){
+          const hx=cx-nx, hy=cy-ny;
+          t.hilo.style.left=nx+'px'; t.hilo.style.top=ny+'px';
+          t.hilo.style.width=Math.hypot(hx,hy)+'px';
+          t.hilo.style.transform='rotate('+Math.atan2(hy,hx)+'rad)';
+        }
+      }
+      requestAnimationFrame(animaTerms);
+    })();
+  }
+})();
+
+// ---- consola de errores -----------------------------------------------------
+// Separada de la de actividad A PROPOSITO: se probo mezclarlas y una tirada
+// entierra las capturas bajo los toca/escribe. Una fila por captura, el estado
+// de lectura en el color, y el gb show exacto. El boton &#9888; la abre/cierra.
+(function(){
+  const erroresEl=document.getElementById('errores');
+  const btn=document.getElementById('btnErrores');
+  if(!erroresEl || !btn) return;
+  const EMEM='gb-mapa-errores';
+  let est=null; try{ est=JSON.parse(sessionStorage.getItem(EMEM)||'null'); }catch(_){}
+  let abierto = est ? est.abierto!==0 : true;
+  const TAME=[[300,'22vh'],[380,'32vh'],[520,'55vh']];
+  let tamE = (est && typeof est.tam==='number') ? est.tam : 1;
+  function guarda(){ try{ sessionStorage.setItem(EMEM,
+    JSON.stringify({abierto:abierto?1:0, tam:tamE})); }catch(_){} }
+  function pinta(){
+    if(!abierto){ erroresEl.style.display='none'; return; }
+    erroresEl.style.width=TAME[tamE][0]+'px';
+    erroresEl.style.maxHeight=TAME[tamE][1];
+    const filas=(CAPTURAS||[]).length ? (CAPTURAS||[]).map(c=>
+      '<div class="fila"><span class="hora">'+escapa((c.ts||'').slice(11,19))+'</span>'+
+      '<span class="quien" style="color:'+(c.leida?'var(--suave)':'#f87171')+'">'+
+      escapa(c.nodo||c.donde||'?')+'</span>'+
+      '<span class="que">'+escapa(c.tipo||'?')+'</span>'+
+      '<span class="detalle">'+(c.leida?'leida':'SIN LEER')+
+      ' · gb show '+escapa(String(c.id).slice(0,8))+'</span></div>').join('')
+      : '<div class="fila"><span class="detalle">(0 capturas: nada ha petado '+
+        'en este proyecto)</span></div>';
+    erroresEl.innerHTML='<div class="cab"><span>consola de errores · '+(SIN_LEER||0)+
+      ' sin leer</span><span><b data-acc="emenos" title="mas pequena">&#8722;</b>'+
+      '<b data-acc="emas" title="mas grande">+</b>'+
+      '<b data-acc="cerrar" title="ocultar">&#10005;</b></span></div>'+filas;
+    erroresEl.style.display='block';
+  }
+  erroresEl.addEventListener('click', ev=>{
+    const acc=ev.target&&ev.target.dataset?ev.target.dataset.acc:null;
+    if(!acc) return;
+    if(acc==='cerrar') abierto=false;
+    else if(acc==='emenos') tamE=Math.max(0, tamE-1);
+    else if(acc==='emas') tamE=Math.min(TAME.length-1, tamE+1);
+    guarda(); pinta();
+  });
+  btn.addEventListener('click', ()=>{ abierto=!abierto; guarda(); pinta(); });
+  hazArrastrable(erroresEl, 'gb-mapa-errores-pos');
+  pinta();
+})();
+
+// La recarga automatica, por JS y con modales: se APLAZA mientras se escribe
+// en buscar, se arrastra una tarjeta o hay texto seleccionado. Un refresco que
+// borra lo tecleado — o la seleccion justo antes del Ctrl+C — enseña a no usar
+// la busqueda ni a copiar del mapa; y eso es peor que un mapa 10 s mas viejo.
+if(REFRESCO>0){
+  setInterval(()=>{
+    if(document.activeElement===buscar) return;
+    if(window._arrastrandoTerm) return;
+    const sel=window.getSelection?window.getSelection():null;
+    if(sel&&!sel.isCollapsed) return;
+    location.reload();
+  }, REFRESCO*1000);
+}
+// Lo buscado sobrevive a la recarga: valor restaurado y filtro re-aplicado.
+try{ const _b=sessionStorage.getItem('gb-mapa-buscar');
+     if(_b && !buscar.value){ buscar.value=_b; buscar.dispatchEvent(new Event('input')); } }catch(_){}
+buscar.addEventListener('input', ()=>{
+  try{ sessionStorage.setItem('gb-mapa-buscar', buscar.value); }catch(_){}
+});
+
+medir(); recupera(); requestAnimationFrame(bucle);
+</script>

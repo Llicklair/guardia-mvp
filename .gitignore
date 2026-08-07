@@ -5,8 +5,5 @@ __pycache__/
 *.egg-info/
 .venv/
 
-# grafos regenerables con gb symbols/graph
-docs/grafo-*.html
 pytest-of-*/
 /tmp*/
-docs/mapa.html
