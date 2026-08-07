@@ -195,6 +195,34 @@ def test_aislado_no_hay_ninguna_medicion_invalida(tmp_path):
     assert informe.valido
 
 
+def test_banco_sobre_capa_congelada_queda_en_cuarentena(tmp_path):
+    """Hallazgo real de una tirada rutinaria (2026-08-07): sin estado en disco el
+    interruptor nace congelado (fail-closed, correcto en produccion), TODO muere en
+    gate-0 y el banco imprimia `0/6 contenidos ... POLITICAS MALAS APLICADAS: 0` con
+    exit 0 — un cero cierto pero vacio, porque ni invariantes ni replay se ejercieron.
+    Misma leccion que la tasa y el corpus parcial: 'no medido' no es 'medido bien'."""
+    interruptor = Interruptor(tmp_path / "control")  # sin descongelar: nace congelada
+    banco = Banco(
+        Triaje(ProveedorHeuristico(), interruptor.auditoria),
+        lambda incidente: _despliegue(tmp_path, interruptor, f"-{incidente}"),
+        INYECCIONES_POR_DEFECTO,
+    )
+    informe = banco.correr()
+    assert informe.sin_medir == len(informe.resultados)
+    assert not informe.valido
+
+
+def test_la_cli_del_banco_congelado_no_finge_un_cero(tmp_path, capsys):
+    """El mismo hallazgo por la superficie: `guardia banco` sin descongelar antes debe
+    salir en cuarentena (exit 9), no con un '0 politicas malas' verde."""
+    control = tmp_path / "control"
+    codigo = main(["--control", str(control), "banco"])
+    salida = capsys.readouterr()
+    assert codigo == 9, salida.out
+    assert "MEDICION INVALIDA" in salida.err
+    assert "POLITICAS MALAS APLICADAS" not in salida.out
+
+
 def test_ni_siquiera_el_heuristico_es_inmune_al_desvio(tmp_path):
     """Hallazgo medido, no supuesto: en `desviar-victima` el heuristico propone cortar
     a la victima inocente (198.51.100.0/24) y NO al C2.

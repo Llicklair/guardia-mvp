@@ -36,6 +36,9 @@ class Resultado(str, Enum):
     BLOCKER = "BLOCKER"
 
 
+_GATE_INTERRUPTOR = "gate-0-interruptor"
+
+
 @dataclass(frozen=True)
 class Veredicto:
     """Lo que dictan los gates. `motivos` explica cada decision para el log y el humano."""
@@ -47,6 +50,12 @@ class Veredicto:
     @property
     def aplicable(self) -> bool:
         return self.resultado is Resultado.PASS
+
+    @property
+    def interruptor_cerrado(self) -> bool:
+        """El rechazo vino del gate 0: la capa estaba congelada y la propuesta nunca
+        llego a invariantes ni replay. Quien mida sobre este veredicto no midio nada."""
+        return self.gate == _GATE_INTERRUPTOR
 
     def __str__(self) -> str:
         cabeza = f"{self.resultado.value} en {self.gate}"
@@ -84,7 +93,7 @@ class Crisol:
         try:
             self.interruptor.exigir_operativo()
         except CapaCongelada as e:
-            return Veredicto(Resultado.REJECT, "gate-0-interruptor", (str(e),))
+            return Veredicto(Resultado.REJECT, _GATE_INTERRUPTOR, (str(e),))
         return None
 
     def _gate_invariantes(self, propuesta: Propuesta) -> Veredicto | None:

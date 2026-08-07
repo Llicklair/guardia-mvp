@@ -292,8 +292,9 @@ def _cmd_banco(args: argparse.Namespace) -> int:
     )
     if not informe.valido:
         print(
-            f"\nMEDICION INVALIDA: {informe.sin_medir}/{total} incidente(s) no llegaron a "
-            "los gates. El resultado NO se puede afirmar.",
+            f"\nMEDICION INVALIDA: {informe.sin_medir}/{total} incidente(s) no ejercieron "
+            "los gates. El resultado NO se puede afirmar. Causas tipicas: capa congelada "
+            "(`guardia estado`; descongelar antes de medir) o limite de tasa.",
             file=sys.stderr,
         )
         return 9
