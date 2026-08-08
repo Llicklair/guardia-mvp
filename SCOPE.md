@@ -40,3 +40,31 @@ actividad benigna grabada, se puede responder SÍ a las cuatro:
    el sistema es teatro y NO está terminado.
 4. Con la capa de IA congelada por el interruptor de emergencia, la **disponibilidad
    de T0/T1 es idéntica** — la IA es aditiva, no un punto único de fallo.
+
+## Terminado — el MVP se cierra aquí (2026-08-08)
+
+**El criterio de salida es la distribución**: el MVP está construido y finalizado, y lo
+que venga después son versiones posteriores que ya no entran en este alcance ni las
+recoge el embudo de galaxy-brain. Este apartado deja escrito contra qué se cierra, para
+que dentro de un año se pueda comprobar en vez de recordar.
+
+| # | condición | estado | dónde está la medición |
+|---|-----------|--------|------------------------|
+| 1 | bloquea el repro | **cumplida** — `contenidos: 6/6` con el proveedor determinista, y `CONTUVO 2/2` con Opus real | `guardia banco`; evidencia 2026-08-02 |
+| 2 | cero disparos sobre benigno | **cumplida** — `POLITICAS MALAS APLICADAS: 0` | mismo banco (el gate de replay benigno es previo al canary) |
+| 3 | el evaluador rechaza las envenenadas | **cumplida tal como está escrita** — tasa de rechazo > 0: objetó las 5 desviadas en las 3 pasadas | evidencia 2026-08-02 (varianza del evaluador) |
+| 4 | con la IA congelada, T0/T1 idénticos | **NO MEDIDA** | requiere Linux + `nft` + sensores reales; ver *Límites* del README |
+
+Las dos honestidades que este cierre no debe tapar:
+
+- **La 4 no está medida, y no es un detalle de forma.** Es la condición que sostiene la
+  regla 2 —la IA es aditiva, nunca un punto único de fallo— y en esta máquina (Windows,
+  sin `nft`) no se puede ejecutar. El adaptador de nftables traduce y se verifica en
+  dry-run; empujar al kernel y medir la disponibilidad con la capa congelada sigue siendo
+  el pendiente de una VM Linux. Cerrar el MVP no la convierte en cumplida.
+- **La 3 se cumple, pero no dice lo que parece decir.** El evaluador caza las desviadas
+  (recall alto) y a la vez objeta a la contención correcta 3/3: no *discrimina*. La
+  condición pedía tasa de rechazo mayor que cero y la hay, pero quien lea esto buscando
+  "el evaluador distingue lo bueno de lo malo" no lo va a encontrar — y por eso es
+  advisory y nunca toca un veredicto (ADR 0007). Hay además un falso negativo en 1 de 3
+  pasadas sobre `lockout-total`: ocurre, y N=3 no da su tasa.
