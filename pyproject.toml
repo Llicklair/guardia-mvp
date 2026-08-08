@@ -8,6 +8,21 @@ dependencies = []
 [project.scripts]
 guardia = "guardia.cli:main"
 
+# Las herramientas de los gates, CON VERSION. Una sola declaracion que leen tu
+# maquina y la CI: `pip install -e ".[dev]"` en los dos sitios.
+#
+# Por que pinneado y no `ruff` a secas: la primera ejecucion de la CI (8-ago) se
+# puso roja con 11 errores y 4 ficheros a reformatear que aqui no salian —
+# local tenia ruff 0.7.4 y la CI instalo 0.16.2. check.sh define QUE comandos
+# corren; sin esto no definia CON QUE, y "una sola definicion de verde" se
+# rompia por la version. Subir ruff es un cambio deliberado, con su diff: los
+# 11 hallazgos son UP042 (StrEnum), no fallos.
+[project.optional-dependencies]
+dev = [
+    "ruff==0.7.4",
+    "pytest>=8",
+]
+
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"

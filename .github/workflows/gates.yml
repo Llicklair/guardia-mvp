@@ -32,9 +32,15 @@ jobs:
           python-version: "3.12"
 
       - name: Instalar herramientas de los gates
+        # Desde el propio pyproject (extra `dev`), con las versiones PINNEADAS:
+        # la CI usa exactamente las mismas que tu maquina. La primera ejecucion
+        # de este workflow se puso roja porque `pip install ruff` trajo 0.16.2
+        # frente al 0.7.4 local — check.sh decia que comandos correr, pero no
+        # con que version, y ahi se colaba la divergencia que existe para evitar.
+        #
         # galaxy-brain no esta en PyPI: se instala desde su repo publico.
         run: |
-          pip install ruff pytest
+          pip install -e ".[dev]"
           pip install "galaxy-brain @ git+https://github.com/Llicklair/galaxy-brain.git"
 
       - name: Gates (./check.sh)
