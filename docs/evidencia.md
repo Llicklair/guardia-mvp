@@ -1147,3 +1147,50 @@ esta libreta terminaba diciendo que los fallos no se descubren leyendo código s
 ejecutándolo; hoy toca la simétrica, y es igual de incómoda: **tampoco se descartan leyendo
 código.** Suponer que estas quince estaban muertas por el commit que las siguió habría sido
 la misma pereza que suponerlas vivas por el traceback que las anotó. Se ejecutaron.
+
+## 2026-08-08 · partir el CLI: el refactor como instrumento de medida (dos fallos que solo salen al mover el código)
+
+**Qué se hizo y por qué.** `cli.py` eran 855 líneas — el 20% del código y la cabeza del
+grafo — con `construir_parser()` de 182 líneas seguidas. Se parte en paquete por
+**autoridad**: `control` manda sobre el interruptor y el log, `propuestas` recorre el
+ciclo hasta producción, `medicion` no manda sobre nada y es lo único que puede gastar
+cuota. La ayuda de los quince subcomandos sale **byte a byte idéntica** antes y después
+(202 líneas comparadas con `diff`), y `guardia` y `python -m guardia.cli` siguen vivos.
+
+**Lo que interesa aquí no es el refactor: son los dos fallos que destapó.** Ninguno se ve
+leyendo el fichero entero; los dos aparecen porque mover código obliga a declarar
+dependencias que estaban implícitas.
+
+**1. `RAIZ` contaba tres saltos y necesitaba cuatro.** `Path(__file__).parent.parent.parent`
+apuntaba a la raíz desde `guardia/cli.py`; desde `guardia/cli/_comun.py` apunta a `src/`.
+Lo revelador es el modo de fallo: **no rompe ningún import**. Los corpus por defecto pasan
+a apuntar a `src/corpus/`, que no existe, y el error sale lejísimos del sitio —
+`CorpusIlegible` dentro del banco. Si la constante no hubiera tenido tests que la usan de
+verdad, este refactor habría dejado el camino por defecto roto y el `--help` intacto.
+
+**2. Un test que iba a quedarse verde sin proteger nada.** El que afirma que
+`banco-evaluador` sin modelo no gasta cuota planta una bomba en el transporte:
+
+```python
+monkeypatch.setattr(cli, "TransporteCLI", Bomba)   # antes
+monkeypatch.setattr(medicion, "TransporteCLI", Bomba)  # después: donde se CONSTRUYE
+```
+
+El transporte se construye en `medicion`, no en el paquete. Parchear el sitio equivocado
+deja la bomba desconectada: el comando seguiría imprimiendo el plan, los asserts de salida
+seguirían pasando y **el test seguiría en verde sin poder fallar nunca**. Aquí saltó
+ruidoso por suerte —`monkeypatch.setattr` exige que el atributo exista— pero la suerte no
+es un método. Así que se verificó por **mutación**: anulada la guarda que evita construir
+el transporte, el test se pone rojo; restaurada, verde. Un test que no se ha visto fallar
+no se sabe si prueba algo.
+
+Lo mismo con las seis fronteras nuevas del paquete (228 reglas): se metió a propósito un
+`control -> medicion` prohibido y el gate lo cazó (`rc=1`). Una frontera que solo vive en
+el docstring no es una frontera, es una intención.
+
+**Lo que esto añade al método.** Las dos entradas anteriores decían que los fallos no se
+descubren leyendo código sino ejecutándolo, y que tampoco se descartan leyéndolo. Esta
+añade la tercera: **hay fallos que no se descubren ni leyendo ni ejecutando, sino
+moviendo.** Un import implícito, una ruta relativa y un parche por nombre son correctos
+mientras nada se mueva, y los tres son mentira en cuanto algo se mueve. 281 tests,
+`check.sh` verde, fronteras y ciclos intactos.
