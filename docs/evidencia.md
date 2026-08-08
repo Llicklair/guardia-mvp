@@ -1096,3 +1096,54 @@ se descubren ejecutándolo**, y la única razón de que aparecieran ahora es que
 corrí los comandos como los correría alguien que acaba de instalar esto. Siete caminos
 verificados por la superficie: cinco de fichero ausente salen `exit 2` sin traceback, y
 los dos comandos sin banderas salen `exit 0`. 270 tests recogidos, `check.sh` exit 0.
+
+## 2026-08-08 · el embudo entero, releído: 15 pendientes que eran 2, y once caminos que ya no reproducen
+
+**Lo que se midió y por qué.** El embudo de gb decía *15 capturas sin leer en este
+proyecto*. Es la clase de número que invita a arreglar cosas: quince fallos esperando.
+Antes de tocar nada se comprobó qué queda vivo de esos quince, porque una captura es un
+hecho del pasado y el código de hoy no es el de entonces.
+
+**Lo que dijo la herramienta bien preguntada.** `gb list` a secas agrupa por firma y suma
+todo lo capturado; `gb list --pendientes` quita lo que el git del proyecto ya deja en
+silencio. La diferencia no es cosmética:
+
+```
+gb list              → 10 firmas, 15 sin leer
+gb list --pendientes → 2 firmas · 8 en silencio (controladas)
+```
+
+Y de esas dos: una es `SyntaxError` en `<stdin>` (efímera, ni siquiera es un fichero del
+proyecto) y la otra es un `OSError` de **otro repositorio** — `galaxy-brain/src/galaxybrain/cli.py:59`
+— atribuido a este porque gb reparte por directorio de trabajo, no por el fichero del
+traceback. Cero fallos vivos propios.
+
+**La verificación, que es lo único que cierra el asunto.** Las anclas de las capturas
+apuntan al código de HOY, y el de hoy ya no es el de la captura: `cli.py:116` era
+`Path(args.control)` cuando reventó y ahora es un `json.dumps`; `cli.py:137` era el
+`--benigno` ausente y ahora es un comentario. Leer el ancla habría dado un diagnóstico
+falso en las dos direcciones. Así que se ejecutaron los once escenarios que originaron las
+firmas, por la CLI real:
+
+| escenario | veredicto |
+|---|---|
+| `--control` apuntando a un **fichero** | `CONTROL INVALIDO`, exit 2 |
+| `auditoria` sobre un control recién creado | exit 0 |
+| propuesta ausente en `crisol` | `ENTRADA ILEGIBLE`, exit 2 |
+| corpus ausente en `crisol` / `desplegar` / `responder` (`--incidente` y `--benigno`) | `ENTRADA ILEGIBLE`, exit 2 |
+| `banco` con corpus inexistente | `NADA QUE MEDIR`, exit 9 |
+| `informe` y `enforcement` sin banderas | exit 0 |
+
+**Once de once contenidos, ningún traceback crudo.** Los ocho arreglos de los días
+anteriores (`CorpusIlegible`, `EntradaIlegible`, `ControlInvalido`, el defecto de
+`--control`) siguen aguantando, y lo que quedaba en el embudo era su sombra, no su
+reaparición. El ciclo cierra en **10 capturadas · 10 leídas · 8 intervenidas · 8 sin
+reaparecer**.
+
+**Lo que esto dice del método.** Un embudo que solo crece deja de leerse, y un contador de
+«sin leer» que mezcla exploración con fallos reales se convierte en ruido que asusta: la
+cifra honesta no era 15, era 2, y estaba a una bandera de distancia. La entrada anterior de
+esta libreta terminaba diciendo que los fallos no se descubren leyendo código sino
+ejecutándolo; hoy toca la simétrica, y es igual de incómoda: **tampoco se descartan leyendo
+código.** Suponer que estas quince estaban muertas por el commit que las siguió habría sido
+la misma pereza que suponerlas vivas por el traceback que las anotó. Se ejecutaron.
