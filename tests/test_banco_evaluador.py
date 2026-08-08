@@ -237,12 +237,17 @@ def test_sin_modelo_el_comando_ensena_el_plan_y_no_gasta_nada(capsys, monkeypatc
     no existia. La bomba en el transporte afirma 'no gasta' de verdad: si el comando
     llegara a construir un canal, el test revienta ahi, no en la salida."""
     import guardia.cli as cli
+    from guardia.cli import medicion
 
     class Bomba:
         def __init__(self, *args, **kwargs):
             raise AssertionError("sin modelo nombrado no se construye ningun transporte")
 
-    monkeypatch.setattr(cli, "TransporteCLI", Bomba)
+    # El parche va en `medicion`, que es donde se CONSTRUYE el transporte, no en el
+    # paquete: `guardia.cli` reexporta `main` pero no el simbolo, y parchear el sitio
+    # equivocado dejaria la bomba sin cablear — el test seguiria verde sin proteger
+    # nada, que es peor que no tenerlo. Aqui salta ruidoso si el nombre se muda.
+    monkeypatch.setattr(medicion, "TransporteCLI", Bomba)
     codigo = cli.main(["banco-evaluador"])
     salida = capsys.readouterr()
     assert codigo == 0

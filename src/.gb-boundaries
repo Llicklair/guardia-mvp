@@ -320,3 +320,19 @@ guardia.transporte -/-> guardia.nftables
 guardia.informe -/-> guardia.nftables
 guardia.banco -/-> guardia.nftables
 guardia.banco_evaluador -/-> guardia.nftables
+
+# Dentro de la linea de mando: el reparto del paquete `cli` es por AUTORIDAD, y sin
+# estas reglas esa frontera solo existiria en el docstring. `medicion` no manda sobre
+# nada — mide, y es lo unico que puede gastar cuota; que un comando con autoridad
+# acabara importandolo seria la senal de que la medicion se coló en el camino de
+# recuperacion, que es justo lo que la regla 2 prohibe. Al reves si vale, y pasa:
+# `medicion` importa `propuestas` porque para medir el ciclo hay que recorrerlo.
+guardia.cli.control -/-> guardia.cli.medicion
+guardia.cli.propuestas -/-> guardia.cli.medicion
+
+# Lo compartido no conoce a quien lo comparte: si `_comun` importara un handler, el
+# helper pasaria a depender del comando y dejaria de poder usarse desde otro.
+guardia.cli._comun -/-> guardia.cli.control
+guardia.cli._comun -/-> guardia.cli.propuestas
+guardia.cli._comun -/-> guardia.cli.medicion
+guardia.cli._comun -/-> guardia.cli.parser
