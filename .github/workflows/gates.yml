@@ -1,0 +1,41 @@
+# CI: los gates deterministas, los mismos que en tu maquina.
+#
+# POR QUE ejecuta ./check.sh y no repite los comandos aqui:
+#   Una sola definicion de "verde". Si la CI repitiera los gates por su cuenta,
+#   local y CI podrian divergir en silencio — y este proyecto existe justo para
+#   impedir que un veredicto dependa de donde se ejecuta. check.sh es la unica
+#   fuente de verdad; anadir un gate ahi lo anade en los dos sitios a la vez.
+#
+# POR QUE no hay ruta de escape si galaxy-brain no se instala:
+#   La tenia y se quito. Era maquinaria para un caso que no ocurre (el repo es
+#   publico y la instalacion esta verificada) y acoplaba la CI al texto exacto
+#   de una linea de check.sh: si alguien editaba esa linea, el salto dejaba de
+#   funcionar EN SILENCIO. Si un dia gb no se puede instalar, lo correcto es que
+#   la CI se ponga roja y alguien lo mire, no que pase en verde con un gate
+#   menos. Un gate que se salta solo es exactamente lo que guardia no permite.
+
+name: gates
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar herramientas de los gates
+        # galaxy-brain no esta en PyPI: se instala desde su repo publico.
+        run: |
+          pip install ruff pytest
+          pip install "galaxy-brain @ git+https://github.com/Llicklair/galaxy-brain.git"
+
+      - name: Gates (./check.sh)
+        run: bash check.sh
