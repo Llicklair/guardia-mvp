@@ -17,7 +17,7 @@ PUERTO = 8080
 
 
 class Handler(BaseHTTPRequestHandler):
-    def do_GET(self) -> None:  # noqa: N802  (la firma la fija http.server)
+    def do_GET(self) -> None:  # el nombre lo fija http.server, no es estilo nuestro
         partes = urlparse(self.path)
         if partes.path != "/ping":
             self._responder(404, "prueba /ping?host=127.0.0.1\n")
