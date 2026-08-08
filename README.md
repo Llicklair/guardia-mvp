@@ -41,8 +41,9 @@ Toda propuesta pasa, en orden, por:
 3. **Replay malicioso** — se reproduce contra el incidente: si no contiene el ataque, fuera.
 4. **Rollback probado** — la reversión se verifica por hash antes de dar nada por aplicado.
 
-El veredicto es de los cinco gates. El modelo puede equivocarse, o incluso ser desviado por
-una inyección de prompt: mientras su propuesta no pase los gates, no se aplica.
+El interruptor es la puerta 0 —precede al crisol y no lo forma—; el veredicto lo dictan los
+**cuatro gates**, nunca el modelo. Este puede equivocarse, o incluso ser desviado por una
+inyección de prompt: mientras su propuesta no pase los gates, no se aplica.
 
 ## Instalación
 
@@ -56,26 +57,45 @@ El entrypoint es el comando `guardia` (no hay `python -m guardia`).
 
 ## Uso
 
-```bash
-guardia estado                 # estado del interruptor
-guardia descongelar "motivo"   # activar la capa (queda en el log encadenado)
-guardia responder incidente.jsonl   # ciclo completo: incidente → T2 → T3
-guardia crisol propuesta.json       # pasar una propuesta por los gates a mano
-guardia auditoria              # ver el log encadenado por hash
-guardia informe --salida panel.html # panel de operador (HTML, sin servidor)
-guardia enforcement            # traducir la política activa a un ruleset nftables (dry-run)
-```
+Todo comando acepta `--control DIR` (por defecto, `GUARDIA_CONTROL_DIR` o el del sistema).
 
-Instrumentos de medición (algunos gastan cuota de un LLM real; son opt-in):
+**El interruptor y el log** — nace congelado; reactivar exige motivo, y el motivo queda escrito:
 
 ```bash
-guardia banco                  # métrica 5: corpus de inyecciones contra T2, ciclo completo
-guardia banco-evaluador        # ¿el evaluador distingue una propuesta desviada de la correcta?
-guardia generar-inyecciones    # encarga un corpus de ataques a un modelo ciego
+guardia estado                      # estado de la capa de IA
+guardia congelar "motivo"           # kill switch (--actor humano|automata)
+guardia descongelar "motivo"        # reactivar (--actor humano|automata|ia)
+guardia auditoria                   # ver el log encadenado por hash (--verificar solo comprueba la cadena)
+guardia informe                     # panel de operador HTML (--salida, por defecto <control>/informe.html)
 ```
 
-Por defecto, todo lo que costaría cuota **enseña el plan y no gasta**; ejecutar de verdad
-exige nombrar el modelo a mano.
+**El ciclo de una propuesta** — de JSON a política activa, con canary y reversión:
+
+```bash
+guardia validar propuesta.json      # gramática e invariantes (sin fichero, lee de stdin)
+guardia crisol propuesta.json       # los cuatro gates a mano (--benigno, --incidente)
+guardia desplegar propuesta.json    # crisol + canary con dead-man's switch
+guardia confirmar <id>              # promover un canary a estable (solo humano)
+guardia revisar                     # dead-man's switch: revierte los canarios expirados
+guardia responder incidente.jsonl   # el ciclo entero: incidente → T2 → T3
+guardia enforcement                 # la política activa a ruleset nftables; dry-run salvo --aplicar
+```
+
+`enforcement --aplicar` es el único comando que toca el sistema (`nft -f -`: necesita Linux,
+nftables y privilegios). Sin esa bandera solo imprime el ruleset.
+
+**Instrumentos de medición** (gastan cuota de un LLM real; opt-in):
+
+```bash
+guardia banco                       # métrica 5: corpus de inyecciones contra T2, ciclo completo
+guardia banco-evaluador             # ¿el evaluador distingue una propuesta desviada de la correcta?
+guardia generar-inyecciones --salida DIR   # encarga un corpus de ataques a un modelo ciego
+```
+
+Por defecto, todo lo que costaría cuota **enseña el plan y no gasta**: hay que nombrar el
+modelo a mano (`--proveedor llm` en `banco`/`responder`, `--llm-cli` en el resto). `--pasadas N`
+repite la medición para ver la varianza y gasta N veces la cuota. Un modelo por debajo del
+suelo de evaluación (`opus`) se **rechaza**, no se degrada en silencio.
 
 ## Verificación
 
@@ -83,7 +103,8 @@ exige nombrar el modelo a mano.
 bash check.sh   # ruff + pytest + gate del grafo de dependencias (gb graph src --gate)
 ```
 
-268 tests deterministas + 2 *smokes* con cuota (marcados `skip` salvo opt-in). El grafo de
+279 tests deterministas + 2 *smokes* con cuota (`skip` salvo `GUARDIA_SMOKE_LLM=claude|gemini`).
+El grafo de
 imports se mantiene sin ciclos y con fronteras declaradas en `src/.gb-boundaries`: por
 ejemplo, el evaluador **no** puede importar `crisol`/`despliegue`/`aplicador` (no manda), y
 el generador de ataques **no** ve la gramática (ataca a ciegas).
