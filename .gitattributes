@@ -1,0 +1,6 @@
+# LF en el repo Y en el working tree, decidido por git y no por el autocrlf de
+# cada maquina. Medido el 8-ago: 95 ficheros con CRLF en disco y 3 en w/mixed
+# (dos finales de linea en el MISMO fichero) — el estado que produce diffs
+# fantasma y ficheros que otras herramientas leen mal. text=auto deja que git
+# detecte los binarios en vez de declararlos a mano.
+* text=auto eol=lf
