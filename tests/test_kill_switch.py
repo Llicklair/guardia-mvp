@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 import pytest
 
 from guardia.actores import Actor, SinAutoridad
@@ -17,6 +19,21 @@ def test_nace_congelado_sin_estado_en_disco(interruptor):
     """Fail-closed: una instalacion nueva no puede escribir politica hasta que un
     humano la arma. Lo contrario seria dar autoridad por omision."""
     assert interruptor.estado().congelado
+
+
+def test_el_estado_leido_no_se_puede_descongelar_en_memoria(interruptor):
+    """`frozen=True` en Estado es fail-closed en memoria, no cosmetica: si el
+    estado que devuelve estado() fuera mutable, cualquier codigo con una
+    referencia podria ponerle `congelado = False` sin pasar por descongelar()
+    — es decir, sin actor, sin motivo y sin entrada en la auditoria, que es
+    justo lo que la regla 8 existe para impedir.
+
+    Nadie lo afirmaba: quitar el `frozen` dejaba la suite entera en verde
+    (encontrado con mutacion, 8-ago)."""
+    estado = interruptor.estado()
+
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        estado.congelado = False  # type: ignore[misc]
 
 
 def test_estado_ilegible_es_congelado(interruptor):

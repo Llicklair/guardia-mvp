@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 
 import pytest
@@ -111,3 +112,42 @@ def test_el_orden_de_las_claves_no_cambia_el_hash():
     al_reves = _hash(GENESIS, {"datos": {"b": 2, "a": 1}, **payload})
 
     assert directo == al_reves
+
+
+def test_mentir_en_el_enlace_previo_rompe_la_cadena(auditoria):
+    """La tercera guarda de verificar(), la unica sin test hasta hoy.
+
+    Las otras manipulaciones no llegan aqui: alterar el contenido dispara la
+    guarda del hash y borrar una entrada la del seq. Esta rama solo la alcanza
+    una entrada INCONSISTENTE — el campo `previo` mentido dejando el `hash`
+    como estaba, que es lo que se construye abajo.
+
+    Sin este test, cambiar su veredicto a `intacta=True` deja la suite en verde
+    con el log diciendo a la vez "intacta" y "el enlace previo no cuadra".
+    Encontrado con mutacion sobre este repo (8-ago).
+    """
+    auditoria.registrar("congelado", "humano")
+    auditoria.registrar("descongelado", "humano")
+
+    lineas = auditoria.ruta.read_text(encoding="utf-8").splitlines()
+    crudo = json.loads(lineas[1])
+    crudo["previo"] = "0" * 64  # solo el enlace; el hash NO se toca
+    lineas[1] = json.dumps(crudo, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    auditoria.ruta.write_text("\n".join(lineas) + "\n", encoding="utf-8")
+
+    veredicto = auditoria.verificar()
+
+    assert not veredicto.intacta
+    assert veredicto.rota_en == 2
+    assert "previo" in veredicto.motivo
+
+
+def test_una_entrada_ya_escrita_no_se_puede_mutar(auditoria):
+    """`frozen=True` no es cosmetica: es la mitad en memoria del invariante 7.
+    Un log a prueba de manipulacion cuyas entradas se editan sobre la marcha
+    solo protege del atacante que pasa por el disco. Nadie lo afirmaba, asi que
+    quitar el `frozen` no rompia nada (mutacion, 8-ago)."""
+    entrada = auditoria.registrar("congelado", "humano")
+
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        entrada.seq = 99  # type: ignore[misc]
